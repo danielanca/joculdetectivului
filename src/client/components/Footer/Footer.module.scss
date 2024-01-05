@@ -1,0 +1,80 @@
+@import "./../node_modules/include-media/dist/include-media";
+$breakpoints: (xxs:320px, xs:375px, s:768px, md:1024px, lg:1200px, xl:1400px, xxl:1920px);
+:root{
+    --blueDetective: #0F183F;
+    --footer-headline-margin-top: 80px;
+    --footer-headline-font-size:20px;
+    --footer-headline-margin-left-right:10%;
+    --footer-items-margin-top:20px;
+    
+    @include media("<xxl"){
+        --footer-headline-margin-top: 60px;
+        --footer-headline-font-size:16px;
+    }
+    @include media(">=xxs", "<lg"){
+        --footer-headline-margin-top: 60px;
+        --footer-headline-font-size:12px;
+    }
+}
+.footerOuter{
+
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    background-color: var(--blueDetective);
+.footerContainer{
+    display: flex;
+    flex-direction: column;
+    max-width: 1920px;
+    .headlineFooter{
+        margin-right: var(--footer-headline-margin-left-right);
+        margin-left: var(--footer-headline-margin-left-right);
+    }
+    .headlineFooter h2{
+        color:white;
+        text-align: center;
+        margin-top: var(--footer-headline-margin-top);
+        font-family: 'Oswald Regular';
+        letter-spacing: 0.5px;
+        font-size: var(--footer-headline-font-size);
+    }
+    .middleItems{
+        display: flex;
+        flex-direction: row;
+        justify-content:space-between;
+        outline: 2px solid white;
+        margin-right: var(--footer-headline-margin-left-right);
+        margin-left: var(--footer-headline-margin-left-right);
+        margin-top: var(--footer-headline-margin-top);
+        .logoContainer{
+            background-color: white;
+            width: 200px;
+            height: 200px;
+        }
+        ul{
+            margin-top: var(--footer-items-margin-top);
+            color:white;
+            li{
+                margin-top: 14px;
+                line-height: 24px;
+                cursor: pointer;
+                &:hover{
+                    text-decoration: underline 2px;
+                    text-decoration-color: yellow; 
+                    text-underline-offset: 5px;
+                
+                }
+            }
+        }
+    }
+    .drawLine{
+        width: auto;
+        height: 2px;
+        background-color: white;
+        margin-left: var(--footer-headline-margin-left-right);
+        margin-right: var(--footer-headline-margin-left-right);
+        margin-top: var(--footer-headline-margin-top);
+        margin-bottom: var(--footer-headline-margin-top);
+    }
+    }   
+}
