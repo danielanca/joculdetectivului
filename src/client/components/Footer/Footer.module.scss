@@ -6,6 +6,8 @@ $breakpoints: (xxs:320px, xs:375px, s:768px, md:1024px, lg:1200px, xl:1400px, xx
     --footer-headline-font-size:20px;
     --footer-headline-margin-left-right:10%;
     --footer-items-margin-top:20px;
+    --footer-flex-direction: row;
+    --footer-logo-wrapper: 200px;
     
     @include media("<xxl"){
         --footer-headline-margin-top: 60px;
@@ -14,10 +16,11 @@ $breakpoints: (xxs:320px, xs:375px, s:768px, md:1024px, lg:1200px, xl:1400px, xx
     @include media(">=xxs", "<lg"){
         --footer-headline-margin-top: 60px;
         --footer-headline-font-size:12px;
+        --footer-flex-direction: column;
+        --footer-logo-wrapper: 100%;
     }
 }
 .footerOuter{
-
     width: 100%;
     display: flex;
     justify-content: center;
@@ -40,7 +43,7 @@ $breakpoints: (xxs:320px, xs:375px, s:768px, md:1024px, lg:1200px, xl:1400px, xx
     }
     .middleItems{
         display: flex;
-        flex-direction: row;
+        flex-direction: var(--footer-flex-direction);
         justify-content:space-between;
         outline: 2px solid white;
         margin-right: var(--footer-headline-margin-left-right);
@@ -48,7 +51,7 @@ $breakpoints: (xxs:320px, xs:375px, s:768px, md:1024px, lg:1200px, xl:1400px, xx
         margin-top: var(--footer-headline-margin-top);
         .logoContainer{
             background-color: white;
-            width: 200px;
+            width: var(--footer-logo-wrapper);
             height: 200px;
         }
         ul{
