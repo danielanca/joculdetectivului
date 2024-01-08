@@ -1,0 +1,21 @@
+@import "./../node_modules/include-media/dist/include-media";
+
+
+.recordingComponent{
+    height: 100vh;
+    position: relative;
+    width: 100vw;
+    background-repeat: no-repeat;
+    background-image: url('https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/homePage%2FaudioComponent%2Fimage%2027.jpg?alt=media&token=1b687d08-fe10-42be-9dcd-8443ec0b1ec3');
+    background-size: cover;
+    background-position: center;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    max-height: 900px;
+   .headline{
+    width: fit-content;
+    height: fit-content;
+   }
+}

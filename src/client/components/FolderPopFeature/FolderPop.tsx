@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import "./FolderPop.scss";
 
 interface FileStylingRule {
@@ -81,9 +81,13 @@ const deactivateStyling = () => {
 };
 const FolderPop = () => {
   const [isFolderOpen, setIsFolderOpen] = useState(false);
-  const [lastWindowWidth, setLastWidth] = useState(window.innerWidth);
+  const [lastWindowWidth, setLastWidth] = useState(0);
+  useEffect(() => {
+    setLastWidth(window.innerWidth);
+  }, []);
   useEffect(() => {
     const folder = document.querySelector(".folderFront");
+
     if (folder) {
       const handleClick = () => {
         setIsFolderOpen(prevState => !prevState); // Toggle the state
