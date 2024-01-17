@@ -10,9 +10,9 @@ function Header() {
                     <img src={DEPARTAMENTUL_Batch} alt="" className="w-20 h-20" />
                 </div>
                 <div className="flex flex-col">
-                    <span className="text-xl font-bold text-[#1B2D5E]">DEPARTAMENTUL</span>
-                    <span className="text-lg font-bold text-[#1B2D5E]">DE INVESTIGATII</span>
-                    <span className="text-2xl font-bold text-[#1B2D5E]">MOST WANTED</span>
+                    <span className="text-xl font-bold text-[#1B2D5E] cursor-default">DEPARTAMENTUL</span>
+                    <span className="text-lg font-bold text-[#1B2D5E] cursor-default">DE INVESTIGATII</span>
+                    <span className="text-2xl font-bold text-[#1B2D5E] cursor-default">MOST WANTED</span>
                 </div>
             </div>
             {/* VIAȚA ARE PRIORITATE Banner */}

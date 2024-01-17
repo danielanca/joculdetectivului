@@ -18,8 +18,8 @@ function UsersProfiles() {
 
             {/* (Previous & Next) Button */}
             <div className="flex justify-between my-10">
-                <div className="mt-4 h-9 w-24 font-normal text-base text-[#FFFFFF] bg-[#202A56] flex items-center justify-center">{"<- Inapoi"}</div>
-                <div className="mt-4 h-9 w-24 font-normal text-base text-[#FFFFFF] bg-[#202A56] flex items-center justify-center">{"Urmator ->"}</div>
+                <div className="mt-4 h-9 w-24 font-normal text-base text-[#FFFFFF] bg-[#202A56] flex items-center justify-center cursor-pointer">{"<- Inapoi"}</div>
+                <div className="mt-4 h-9 w-24 font-normal text-base text-[#FFFFFF] bg-[#202A56] flex items-center justify-center cursor-pointer">{"Urmator ->"}</div>
             </div>
 
             {/* Page Number */}

@@ -35,7 +35,7 @@ function UserInfo() {
                     </div>
 
                     {/* Button */}
-                    <div className="mt-4 h-9 w-24 font-normal text-base text-[#FFFFFF] bg-[#202A56] flex items-center justify-center">Afișează</div>
+                    <div className="mt-4 h-9 w-24 font-normal text-base text-[#FFFFFF] bg-[#202A56] flex items-center justify-center cursor-pointer">Afișează</div>
                 </div>
             </div>
             </div>
