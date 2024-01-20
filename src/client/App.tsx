@@ -1,22 +1,16 @@
-import React from 'react';
-import Main from './pages/Main';
-import { ContextWrapper } from './Context';
-import { Footer } from './components/Footer';
-import TopBar from './components/TopBar';
-import Header from './components/Header';
-// import UserInfo from "./components/UserInfo";
-import UsersProfiles from './components/UsersProfiles';
+import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
+import { ContextWrapper } from "./Context";
+
+import MostWanted from "./components/MostWanted/MostWanted";
+import FolderPopFeature from "./components/FolderPopFeature/FolderPopFeature";
 
 export const App = () => {
   return (
     <ContextWrapper>
-      <TopBar />
-      <Header />
-      {/* <UserInfo /> */}
-      <UsersProfiles />
-
-      {/* <Main /> */}
-      <Footer />
+      <Routes>
+        <Route path="/" element={<FolderPopFeature />} />
+        <Route path="/most-wanted" element={<MostWanted />} />
+      </Routes>
     </ContextWrapper>
   );
 };
