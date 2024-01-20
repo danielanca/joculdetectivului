@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "resolveJsonModule": true,
     "allowJs": true,
     "alwaysStrict": true,
     "allowSyntheticDefaultImports": true,
@@ -19,13 +20,13 @@
     "skipLibCheck": true,
     "sourceMap": true,
     "target": "ES2017",
-    "types": ["vite/client"]
+    "types": ["vite/client"],
   },
   "include": ["src/**/*", "types/*", "server.ts", "node_modules/vite/types/*"],
   "ts-node": {
     "transpileOnly": true,
     "compilerOptions": {
-      "module": "CommonJS"
-    }
-  }
+      "module": "CommonJS",
+    },
+  },
 }
