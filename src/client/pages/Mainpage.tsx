@@ -1,10 +1,9 @@
-import React from "react";
+import { useAppContext } from "../Context";
 import { Footer } from "../components/Footer/Footer";
 import FolderPopFeature from "../components/FolderPopFeature/FolderPopFeature";
-import { useAppContext } from "../Context";
 
-const Main = () => {
-  const { name, setName } = useAppContext();
+const Mainpage = () => {
+  // const { name, setName } = useAppContext();
   return (
     <div className="flex bg-white-100 font-sans items-center flex-col justify-between h-screen">
       <FolderPopFeature />
@@ -13,4 +12,4 @@ const Main = () => {
   );
 };
 
-export default Main;
+export default Mainpage;
