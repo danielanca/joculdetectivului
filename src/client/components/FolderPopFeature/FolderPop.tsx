@@ -81,7 +81,8 @@ const deactivateStyling = () => {
 };
 const FolderPop = () => {
   const [isFolderOpen, setIsFolderOpen] = useState(false);
-  const [lastWindowWidth, setLastWidth] = useState(window.innerWidth);
+
+  const [lastWindowWidth, setLastWidth] = useState(0);
   useEffect(() => {
     const folder = document.querySelector(".folderFront");
     if (folder) {

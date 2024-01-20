@@ -974,7 +974,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/react@npm:*, @types/react@npm:^18.2.34":
+"@types/react@npm:*":
   version: 18.2.46
   resolution: "@types/react@npm:18.2.46"
   dependencies:
@@ -982,6 +982,17 @@ __metadata:
     "@types/scheduler": "npm:*"
     csstype: "npm:^3.0.2"
   checksum: 814cc67107e5e69501d65bfc371cc2c716665d2a3608d395a2f81e24c3a2875db28e2cad717dfb17017eabcffd1d68ee2c9e09ecaba3f7108d5b7fbb9888ebab
+  languageName: node
+  linkType: hard
+
+"@types/react@npm:^18.2.48":
+  version: 18.2.48
+  resolution: "@types/react@npm:18.2.48"
+  dependencies:
+    "@types/prop-types": "npm:*"
+    "@types/scheduler": "npm:*"
+    csstype: "npm:^3.0.2"
+  checksum: 7e89f18ea2928b1638f564b156d692894dcb9352a7e0a807873c97e858abe1f23dbd165a25dd088a991344e973fdeef88ba5724bfb64504b74072cbc9c220c3a
   languageName: node
   linkType: hard
 
@@ -3833,6 +3844,55 @@ __metadata:
   languageName: node
   linkType: hard
 
+"joculdetectivului@workspace:.":
+  version: 0.0.0-use.local
+  resolution: "joculdetectivului@workspace:."
+  dependencies:
+    "@testing-library/jest-dom": "npm:^6.1.4"
+    "@testing-library/react": "npm:^14.0.0"
+    "@types/compression": "npm:1.7.4"
+    "@types/concurrently": "npm:6.4.0"
+    "@types/eslint": "npm:8.44.6"
+    "@types/express": "npm:^4.17.20"
+    "@types/node": "npm:20.8.10"
+    "@types/react": "npm:^18.2.48"
+    "@types/react-dom": "npm:^18.2.14"
+    "@types/react-router-dom": "npm:^5.3.3"
+    "@types/serve-static": "npm:^1.15.4"
+    "@typescript-eslint/eslint-plugin": "npm:^6.9.1"
+    "@typescript-eslint/parser": "npm:^6.9.1"
+    "@vitejs/plugin-react": "npm:^4.1.1"
+    "@vitest/coverage-v8": "npm:^0.34.6"
+    autoprefixer: "npm:^10.4.16"
+    compression: "npm:1.7.4"
+    concurrently: "npm:8.2.2"
+    copyfiles: "npm:^2.4.1"
+    cross-env: "npm:^7.0.3"
+    eslint: "npm:^8.52.0"
+    eslint-config-prettier: "npm:^9.0.0"
+    eslint-config-standard: "npm:^17.1.0"
+    eslint-plugin-react: "npm:^7.33.2"
+    eslint-plugin-react-hooks: "npm:^4.6.0"
+    express: "npm:4.18.2"
+    html-react-parser: "npm:^5.0.11"
+    include-media: "npm:^2.0.0"
+    jsdom: "npm:^22.1.0"
+    postcss: "npm:8.4.31"
+    prettier: "npm:^3.0.3"
+    react: "npm:^18.2.0"
+    react-dom: "npm:^18.2.0"
+    react-router-dom: "npm:^6.18.0"
+    rimraf: "npm:^5.0.5"
+    sass: "npm:^1.69.7"
+    serve-static: "npm:^1.15.0"
+    tailwindcss: "npm:3.3.5"
+    tsx: "npm:^3.14.0"
+    typescript: "npm:5.2.2"
+    vite: "npm:4.5.0"
+    vitest: "npm:^0.34.6"
+  languageName: unknown
+  linkType: soft
+
 "js-tokens@npm:^3.0.0 || ^4.0.0, js-tokens@npm:^4.0.0":
   version: 4.0.0
   resolution: "js-tokens@npm:4.0.0"
@@ -6245,55 +6305,6 @@ __metadata:
   checksum: 0e804eab1ae5f0d98014f0a933ec08bfc287228283c3c4792f5f8b8fec6657896e513498e8436449e3116839a5592f9b497cf0b982b8da1152d7d419ccc306f1
   languageName: node
   linkType: hard
-
-"vite-typescript-ssr-react@workspace:.":
-  version: 0.0.0-use.local
-  resolution: "vite-typescript-ssr-react@workspace:."
-  dependencies:
-    "@testing-library/jest-dom": "npm:^6.1.4"
-    "@testing-library/react": "npm:^14.0.0"
-    "@types/compression": "npm:1.7.4"
-    "@types/concurrently": "npm:6.4.0"
-    "@types/eslint": "npm:8.44.6"
-    "@types/express": "npm:^4.17.20"
-    "@types/node": "npm:20.8.10"
-    "@types/react": "npm:^18.2.34"
-    "@types/react-dom": "npm:^18.2.14"
-    "@types/react-router-dom": "npm:^5.3.3"
-    "@types/serve-static": "npm:^1.15.4"
-    "@typescript-eslint/eslint-plugin": "npm:^6.9.1"
-    "@typescript-eslint/parser": "npm:^6.9.1"
-    "@vitejs/plugin-react": "npm:^4.1.1"
-    "@vitest/coverage-v8": "npm:^0.34.6"
-    autoprefixer: "npm:^10.4.16"
-    compression: "npm:1.7.4"
-    concurrently: "npm:8.2.2"
-    copyfiles: "npm:^2.4.1"
-    cross-env: "npm:^7.0.3"
-    eslint: "npm:^8.52.0"
-    eslint-config-prettier: "npm:^9.0.0"
-    eslint-config-standard: "npm:^17.1.0"
-    eslint-plugin-react: "npm:^7.33.2"
-    eslint-plugin-react-hooks: "npm:^4.6.0"
-    express: "npm:4.18.2"
-    html-react-parser: "npm:^5.0.11"
-    include-media: "npm:^2.0.0"
-    jsdom: "npm:^22.1.0"
-    postcss: "npm:8.4.31"
-    prettier: "npm:^3.0.3"
-    react: "npm:^18.2.0"
-    react-dom: "npm:^18.2.0"
-    react-router-dom: "npm:^6.18.0"
-    rimraf: "npm:^5.0.5"
-    sass: "npm:^1.69.7"
-    serve-static: "npm:^1.15.0"
-    tailwindcss: "npm:3.3.5"
-    tsx: "npm:^3.14.0"
-    typescript: "npm:5.2.2"
-    vite: "npm:4.5.0"
-    vitest: "npm:^0.34.6"
-  languageName: unknown
-  linkType: soft
 
 "vite@npm:4.5.0, vite@npm:^3.0.0 || ^4.0.0 || ^5.0.0-0, vite@npm:^3.1.0 || ^4.0.0 || ^5.0.0-0":
   version: 4.5.0
