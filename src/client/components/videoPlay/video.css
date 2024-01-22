@@ -1,0 +1,42 @@
+.video-container {
+    display: flex;
+    height: 100vh;
+    flex-direction: column;
+  }
+  @media screen and (min-width: 768px) {
+    .video-container {
+     display: none !important;
+    }
+    
+  }
+  
+  .video-player,
+  .video-list {
+    flex: 1;
+    overflow: hidden;
+  }
+  
+  .video-list {
+    overflow-y: auto;
+  }
+  
+  ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  
+  li {
+    cursor: pointer;
+    padding: 10px;
+    display: flex;
+    gap: 10px;
+    margin-bottom: 5px;
+  }
+  
+  img {
+    width: 50%;
+    max-height: 120px;
+    
+  }
+  

@@ -3,6 +3,7 @@ import { ContextWrapper } from "./Context";
 
 import MostWanted from "./components/MostWanted/MostWanted";
 import Mainpage from "./pages/Mainpage";
+import VideoPlayer from "./components/videoPlay/VideoList";
 
 export const App = () => {
   return (
@@ -10,6 +11,7 @@ export const App = () => {
       <Routes>
         <Route path="/" element={<Mainpage />} />
         <Route path="/most-wanted" element={<MostWanted />} />
+        <Route path="/video" element={<VideoPlayer />} />
       </Routes>
     </ContextWrapper>
   );
