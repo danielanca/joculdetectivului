@@ -1,14 +1,20 @@
+@import "./../../commons/main.scss";
+
+
 .video-container {
     display: flex;
     height: 100vh;
     flex-direction: column;
+
+    @include media(">lg"){
+      display: none !important;
   }
-  @media screen and (min-width: 768px) {
-    .video-container {
-     display: none !important;
-    }
-    
-  }
+}
+
+
+.video-player{
+  width: 100%;
+}
   
   .video-player,
   .video-list {

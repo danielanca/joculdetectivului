@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import './video.css'
+import './video.scss'
 
 const videoList = [
     {
@@ -22,8 +22,6 @@ const videoList = [
 ];
 const VideoPlayer = () => {
     const [currentVideo, setCurrentVideo] = useState<any>(videoList[0].url);
-
-   
 
     const playVideo = (videoUrl: any) => {
         setCurrentVideo(videoUrl);
