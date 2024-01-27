@@ -1,4 +1,5 @@
-import Mainpage from "../pages/Mainpage"
+import { lazy } from "react";
+const Mainpage = lazy(() => import('../pages/Mainpage'));
 
 import { publicRoutesType } from './types';
 

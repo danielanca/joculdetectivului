@@ -1,6 +1,8 @@
-import AudioPlayer from '../components/AudioPlayer/AudioPlayer';
-import MostWanted from '../components/MostWanted/MostWanted';
-import VideoPlayer from '../components/VideoPlayer/VideoPlayer';
+import {lazy} from 'react';
+
+const AudioPlayer = lazy( ()=> import('../components/AudioPlayer/AudioPlayer'));
+const VideoPlayer = lazy( ()=> import('../components/VideoPlayer/VideoPlayer'));
+const MostWanted = lazy(() => import('../components/MostWanted/MostWanted'));
 import { publicRoutesType } from './types';
 
 const gameRoutes: publicRoutesType[] = [
