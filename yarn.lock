@@ -502,6 +502,50 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@fortawesome/fontawesome-common-types@npm:6.5.1":
+  version: 6.5.1
+  resolution: "@fortawesome/fontawesome-common-types@npm:6.5.1"
+  checksum: afd4e6de0af60b1dc1557877f8f5fa95ee9f0fb0558581d25c46d24c2946bbcf54e351451d0ca2d6b043a283a66526450da7cf052a45702237b0c8383823a825
+  languageName: node
+  linkType: hard
+
+"@fortawesome/fontawesome-free@npm:^6.5.1":
+  version: 6.5.1
+  resolution: "@fortawesome/fontawesome-free@npm:6.5.1"
+  checksum: dc359ede1ddfc6d91915345143008420001c56b164a6fe95d81bcca631eecca41009bfacf794d55bdb9d927c112119ce90a11cb4f576a815ed69ec681e5eb824
+  languageName: node
+  linkType: hard
+
+"@fortawesome/fontawesome-svg-core@npm:^6.5.1":
+  version: 6.5.1
+  resolution: "@fortawesome/fontawesome-svg-core@npm:6.5.1"
+  dependencies:
+    "@fortawesome/fontawesome-common-types": "npm:6.5.1"
+  checksum: ba4f4f4f1a98a154ff89ed9a24c586809cd277e147d177fcdc5a76c0ea315087d5e383487d0658b9d27cfcb26971a45364f567c475b4e2df16cfb50cde4a83af
+  languageName: node
+  linkType: hard
+
+"@fortawesome/free-solid-svg-icons@npm:^6.5.1":
+  version: 6.5.1
+  resolution: "@fortawesome/free-solid-svg-icons@npm:6.5.1"
+  dependencies:
+    "@fortawesome/fontawesome-common-types": "npm:6.5.1"
+  checksum: 4874dca5780b74097a5ee8cb86eced74a61b175b6a0b1e5a963b932f6e87f98485d50b9bca208738316e0bccf4cadbea73ecb5678c9ba8d85f2f9f7cb455fd20
+  languageName: node
+  linkType: hard
+
+"@fortawesome/react-fontawesome@npm:^0.2.0":
+  version: 0.2.0
+  resolution: "@fortawesome/react-fontawesome@npm:0.2.0"
+  dependencies:
+    prop-types: "npm:^15.8.1"
+  peerDependencies:
+    "@fortawesome/fontawesome-svg-core": ~1 || ~6
+    react: ">=16.3"
+  checksum: cf1bd3840dfe1b39d2d5ee92ac49ba3aabad95d05dd6374368a5a1e5f140c8e497d11599290cb70afc6c856bb3228628269199e9659ce8f3132692a2d1e464a5
+  languageName: node
+  linkType: hard
+
 "@humanwhocodes/config-array@npm:^0.11.13":
   version: 0.11.14
   resolution: "@humanwhocodes/config-array@npm:0.11.14"
@@ -1017,6 +1061,13 @@ __metadata:
     "@types/mime": "npm:*"
     "@types/node": "npm:*"
   checksum: 811d1a2f7e74a872195e7a013bcd87a2fb1edf07eaedcb9dcfd20c1eb4bc56ad4ea0d52141c13192c91ccda7c8aeb8a530d8a7e60b9c27f5990d7e62e0fecb03
+  languageName: node
+  linkType: hard
+
+"@types/uuid@npm:^9":
+  version: 9.0.8
+  resolution: "@types/uuid@npm:9.0.8"
+  checksum: b411b93054cb1d4361919579ef3508a1f12bf15b5fdd97337d3d351bece6c921b52b6daeef89b62340fd73fd60da407878432a1af777f40648cbe53a01723489
   languageName: node
   linkType: hard
 
@@ -3844,6 +3895,10 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "joculdetectivului@workspace:."
   dependencies:
+    "@fortawesome/fontawesome-free": "npm:^6.5.1"
+    "@fortawesome/fontawesome-svg-core": "npm:^6.5.1"
+    "@fortawesome/free-solid-svg-icons": "npm:^6.5.1"
+    "@fortawesome/react-fontawesome": "npm:^0.2.0"
     "@testing-library/jest-dom": "npm:^6.1.4"
     "@testing-library/react": "npm:^14.0.0"
     "@types/compression": "npm:1.7.4"
@@ -3855,6 +3910,7 @@ __metadata:
     "@types/react-dom": "npm:^18.2.14"
     "@types/react-router-dom": "npm:^5.3.3"
     "@types/serve-static": "npm:^1.15.4"
+    "@types/uuid": "npm:^9"
     "@typescript-eslint/eslint-plugin": "npm:^6.9.1"
     "@typescript-eslint/parser": "npm:^6.9.1"
     "@vitejs/plugin-react": "npm:^4.1.1"
@@ -3885,6 +3941,7 @@ __metadata:
     tailwindcss: "npm:3.3.5"
     tsx: "npm:^3.14.0"
     typescript: "npm:5.2.2"
+    uuid: "npm:^9.0.1"
     vite: "npm:4.5.0"
     vitest: "npm:^0.34.6"
   languageName: unknown
@@ -6276,6 +6333,15 @@ __metadata:
   version: 1.0.1
   resolution: "utils-merge@npm:1.0.1"
   checksum: 02ba649de1b7ca8854bfe20a82f1dfbdda3fb57a22ab4a8972a63a34553cf7aa51bc9081cf7e001b035b88186d23689d69e71b510e610a09a4c66f68aa95b672
+  languageName: node
+  linkType: hard
+
+"uuid@npm:^9.0.1":
+  version: 9.0.1
+  resolution: "uuid@npm:9.0.1"
+  bin:
+    uuid: dist/bin/uuid
+  checksum: 1607dd32ac7fc22f2d8f77051e6a64845c9bce5cd3dd8aa0070c074ec73e666a1f63c7b4e0f4bf2bc8b9d59dc85a15e17807446d9d2b17c8485fbc2147b27f9b
   languageName: node
   linkType: hard
 
