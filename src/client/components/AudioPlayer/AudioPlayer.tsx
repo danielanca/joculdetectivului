@@ -6,37 +6,51 @@ import {
   faAngleRight,
   faPause,
 } from '@fortawesome/free-solid-svg-icons';
-import './app.scss';
 import data, { SongTypes } from './data';
-import Nav from '../Nav/Nav';
-import './AudioPlayer.scss';
-import Library from '../Library/Library';
+import { faMusic } from '@fortawesome/free-solid-svg-icons';
+import styles from './AudioPlayer.module.scss';
+import Library from './Library/Library';
+
+
 const AudioPlayer = () => {
   const [songs, setSongs] = useState<SongTypes[]>(data());
   const [currentSong, setCurrentSong] = useState(songs[0]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [libraryStatus, setLibraryStatus] = useState(false);
   const contextRef = useRef<AudioContext | null>(null);
+  // const [isDragging, setIsDragging] = useState(false);
   const [songInfo, setSongInfo] = useState({
     currentTime: 0,
     duration: 0,
     animationPercentage: 0,
   });
+
   const audioRef: any = useRef<HTMLAudioElement>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const dataArrayRef: any = useRef<Uint8Array | null>(null);
 
   const visualizerRef = useRef<HTMLDivElement>(null);
-  let context: AudioContext;
-  // let analyser: AnalyserNode;
-  let dataArray: Uint8Array;
 
+  const isPlayingRef = useRef(isPlaying);
   const timeUpdateHandler = (e: React.SyntheticEvent<HTMLAudioElement>) => {
+    // if(isDragging) return;
+    
+    // const current = audioRef.current.currentTime;
+    // const duration = audioRef.current.duration;
+    // console.log('Finallt:', audioRef.current.currentTime);
+    // const animationPercentage = Math.round((current / duration) * 100);
+    // console.log('Current time:', current, 'Duration:', duration);
+    // setSongInfo({ currentTime: current, duration, animationPercentage });
+
     const target = e.target as HTMLAudioElement;
+    // // console.log('eTarget duration:', target.duration);
     const current = target.currentTime;
-    const duration = target.duration;
-    const animationPercentage = Math.round((current / duration) * 100);
+     const duration = target.duration;
+    // // console.log('Current time:', audioRef.current.currentTime);
+     const animationPercentage = Math.round((current / duration) * 100);
     setSongInfo({ currentTime: current, duration, animationPercentage });
+
+    // setSongInfo({ currentTime: 14, duration:18, animationPercentage:33 });
   };
 
   const songEndHandler = async () => {
@@ -53,10 +67,40 @@ const AudioPlayer = () => {
     setSongs(newSongs);
   };
 
+  const dragTouchEndHandler = () =>{
+      // setIsDragging(false);
+  }
+
+  useEffect(() => {
+    if (audioRef.current) {
+        audioRef.current.src = currentSong.audio;
+        if (isPlaying) {
+            audioRef.current.play().catch( (error:any) => console.error('Error playing the audio:', error));
+        }
+    }
+}, [currentSong.audio, isPlaying]);
   const dragHandler = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const currentTime = Number(e.target.value);
-    audioRef.current.currentTime = currentTime;
-    setSongInfo({ ...songInfo, currentTime });
+    // setIsDragging(true);
+    // const currentTime = Number(e.target.value);
+    // console.log('dragHandler called: audioRef current vs. currentTime' , audioRef.current.currentTime, currentTime);
+    // audioRef.current.currentTime = currentTime;
+    // console.log('Setting currentTime to:', currentTime);
+    // setSongInfo({ ...songInfo, currentTime });
+
+
+    audioRef.current.currentTime= 30;
+
+    // const currentTime = parseFloat(e.target.value);
+    // console.log('dragHandler called: Current vs. New Time', audioRef.current?.currentTime, currentTime);
+    // if (audioRef.current) {
+    //     audioRef.current.currentTime = currentTime;
+    //     console.log('Setting currentTime to:', currentTime);
+    //     // Only update the state necessary for UI, don't trigger unnecessary re-renders
+    //     setSongInfo(prev => ({
+    //         ...prev,
+    //         currentTime
+    //     }));
+    // }
   };
 
   const skipTrackHandler = async (direction: string) => {
@@ -83,24 +127,45 @@ const AudioPlayer = () => {
     transform: `translateX(${songInfo.animationPercentage}%)`,
   };
 
+  const loop = useCallback(() => {
+    if (!isPlayingRef.current) {
+      console.log('We returning');
+      return;
+    }
+    window.requestAnimationFrame(loop);
+    if (dataArrayRef.current && analyserRef.current) {
+      analyserRef.current.getByteFrequencyData(dataArrayRef.current);
+      updateVisualizer(); // Adjusted function name for clarity
+    }
+  }, []);
+
+
   useEffect(() => {
+    console.log('useEffect:', audioRef.current, currentSong.audio);
     if (audioRef.current && currentSong.audio) {
       audioRef.current.src = currentSong.audio;
     }
-  }, [currentSong, audioRef]);
+  }, [currentSong.audio, audioRef]);
 
-  const loop = useCallback(() => {
-    if (!isPlaying) return;
+  // useEffect(() => {
+  //   if (audioRef.current.src !== currentSong.audio) {
+  //     audioRef.current.src = currentSong.audio;
+  //   }
+  // }, [currentSong.audio]);
+  
 
-    window.requestAnimationFrame(loop);
-
-    if (dataArrayRef.current && analyserRef.current) {
-      analyserRef.current.getByteFrequencyData(dataArrayRef.current);
-      changeTracks();
+  useEffect(() => {
+    console.log('Called isPlaying Loop', isPlaying);
+    isPlayingRef.current = isPlaying;
+    if (isPlaying) {
+        loop();
     }
-  }, [isPlaying]);
+}, [isPlaying]); 
 
+  
   const preparation = () => {
+    if (contextRef.current) return; 
+
     const audioContext = new (window.AudioContext || window.AudioContext)();
     const analyser = audioContext.createAnalyser();
     const src = audioContext.createMediaElementSource(audioRef.current!);
@@ -109,9 +174,10 @@ const AudioPlayer = () => {
     contextRef.current = audioContext;
     analyserRef.current = analyser;
     dataArrayRef.current = new Uint8Array(analyser.frequencyBinCount);
+    
   };
 
-  const changeTracks = () => {
+  const updateVisualizer = () => {
     const visualizer = visualizerRef.current;
     if (visualizer && dataArrayRef.current) {
       for (let i = 0; i < visualizer.children.length; i++) {
@@ -128,88 +194,66 @@ const AudioPlayer = () => {
       audioRef.current?.pause();
     } else {
       audioRef.current?.play();
-      // preparation();
+      preparation();
     }
     setIsPlaying(!isPlaying);
   };
 
   return (
-    <div className='main-parent-container'>
-      <div className='parent-container'>
+    <div className={styles.mainParentContainer}>
+      <div className={styles.parentContainer}>
         <Nav
           libraryStatus={libraryStatus}
           setLibraryStatus={setLibraryStatus}
         />
 
-        <div className='song-container'>
-          <img
-            className='song-img'
-            src={currentSong.cover}
-            alt={currentSong.name}
-          />
-          <h2 className='song-name'>{currentSong.name}</h2>
-          <h3 className='song-artist-name'>{currentSong.artist}</h3>
-        </div>
-
-        <div ref={visualizerRef} id='visualizer'>
+        <div className={styles.songContainer}>
+          <div className={styles.featureCompo}>
+            <img
+              className={styles.songImg}
+              src={currentSong.cover}
+              alt={currentSong.name}
+            />
+          </div>
+         
+           <div ref={visualizerRef} className={styles.visualizer} id='visualizer'>
           {Array.from({ length: 50 }).map((_, index) => (
-            <div key={index} className='track'></div>
+            <div key={index} className={styles.track}></div>
           ))}
         </div>
+        
+        </div>
 
-        <div className='player'>
-          <div className='time-control'>
-            <p className='song-time'>{getTime(songInfo.currentTime)}</p>
+       
+        <div className={styles.audioInfo}>
+          <h2 className={styles.songName}>{currentSong.name}</h2>
+          <h3 className={styles.songArtistName}>{currentSong.artist}</h3>
+        </div>
+        <div className={styles.player}>
+          <div className={styles.timeControl}>
+            <p className={styles.songTime}>{getTime(songInfo.currentTime)}</p>
             <div
               style={{
                 background: `linear-gradient(to right, ${currentSong.color[0]}, ${currentSong.color[1]})`,
                 minWidth: '200px',
               }}
-              className='track'
+              className={styles.trackPlayer}
             >
               <input
                 min={0}
                 max={songInfo.duration || 0}
                 value={songInfo.currentTime}
                 onChange={dragHandler}
+                onTouchEnd={dragTouchEndHandler}
                 type='range'
               />
-              <div style={trackAnim} className='animate-track'></div>
+              <div style={trackAnim} className={styles.animateTrack}></div>
             </div>
-            <p className='song-time'>
+            <p className={styles.songTime}>
               {songInfo.duration ? getTime(songInfo.duration) : '00:00'}
             </p>
           </div>
-          <div className='play-control'>
-            <FontAwesomeIcon
-              onClick={() => skipTrackHandler('skip-back')}
-              size='2x'
-              className='skip-back'
-              icon={faAngleLeft}
-            />
-            {!isPlaying ? (
-              <FontAwesomeIcon
-                onClick={playSongHandler}
-                size='2x'
-                className='play'
-                icon={faPlay}
-              />
-            ) : (
-              <FontAwesomeIcon
-                onClick={playSongHandler}
-                size='2x'
-                className='pause'
-                icon={faPause}
-              />
-            )}
-
-            <FontAwesomeIcon
-              onClick={() => skipTrackHandler('skip-forward')}
-              size='2x'
-              className='skip-forward'
-              icon={faAngleRight}
-            />
-          </div>
+          <PlayerControls isPlaying={isPlaying} skipTrackHandler={skipTrackHandler} playSongHandler={playSongHandler} />
         </div>
 
         <Library
@@ -227,6 +271,7 @@ const AudioPlayer = () => {
           onLoadedMetadata={timeUpdateHandler}
           onTimeUpdate={timeUpdateHandler}
           src={currentSong.audio}
+          crossOrigin='anonymous'
           ref={audioRef}
           onEnded={songEndHandler}
         ></audio>
@@ -234,5 +279,58 @@ const AudioPlayer = () => {
     </div>
   );
 };
+
+
+const Nav = ({ setLibraryStatus, libraryStatus }: any) => {
+  return (
+    <nav className={styles.navContainer}>
+      <h1 className={styles.wavesHeading}>Waves</h1>
+      <button
+        onClick={() => {
+          setLibraryStatus(!libraryStatus);
+        }}
+        className={styles.libraryBtn}
+      >
+        Librarie
+        <FontAwesomeIcon icon={faMusic} />
+      </button>
+    </nav>
+  );
+};
+
+
+const PlayerControls = ({isPlaying, skipTrackHandler,playSongHandler} : { isPlaying: boolean, skipTrackHandler: (direction:string)=> void, playSongHandler: ()=> void}) =>{
+  return (<div className={styles.playControl}>
+            <FontAwesomeIcon
+              onClick={() => skipTrackHandler('skip-back')}
+              size='2x'
+              className={styles.skipBack}
+              icon={faAngleLeft}
+            />
+            {!isPlaying ? (
+              <FontAwesomeIcon
+                onClick={playSongHandler}
+                size='2x'
+                className={styles.play}
+                icon={faPlay}
+              />
+            ) : (
+              <FontAwesomeIcon
+                onClick={playSongHandler}
+                size='2x'
+                className={styles.pause}
+                icon={faPause}
+              />
+            )}
+
+            <FontAwesomeIcon
+              onClick={() => skipTrackHandler('skip-forward')}
+              size='2x'
+              className={styles.skipForward}
+              icon={faAngleRight}
+            />
+      </div>)
+
+}
 
 export default AudioPlayer;

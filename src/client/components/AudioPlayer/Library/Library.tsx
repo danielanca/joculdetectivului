@@ -1,3 +1,4 @@
+import './_library.scss';
 import LibrarySong from './LibrarySong';
 
 const Library = ({
@@ -11,8 +12,8 @@ const Library = ({
 }: any) => {
   return (
     <div className={`library ${libraryStatus ? 'active' : ''}`}>
-      <h2 className='library-heading'>Library</h2>
-      <div className='library-songs'>
+      <h2 className='libraryHeading'>Librarie</h2>
+      <div className='librarySongs'>
         {songs.map((song: any) => (
           <LibrarySong
             setSongs={setSongs}

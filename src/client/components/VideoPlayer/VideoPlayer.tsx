@@ -37,7 +37,7 @@ const VideoPlayer = () => {
                 <ul>
                     {videoList.map((video, index) => (
                         <li key={index} onClick={() => playVideo(video.url)}>
-                            <img src={video.preview} alt={`Video ${index + 1}`} />
+                            <img className={'videoPreview'} src={video.preview} alt={`Video ${index + 1}`} />
                             <div className='flex flex-col'>
                                 <p className='text-2xl font-bold'>Video {index + 1}</p>
                                 <p>Lorem ipsum dolor sit amet consectetur adipisicing elit. Aliquam distinctio vel at qui sapiente natus provident !</p>

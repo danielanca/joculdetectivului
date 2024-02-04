@@ -1,0 +1,259 @@
+:root {
+  --background-color: #181f2a;
+  /* --violet: rgba(78, 58, 183, 0.55); */
+  --violet: red;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.mainParentContainer {
+  background: var(--background-color);
+  min-height: 100vh;
+}
+
+.parentContainer{
+  max-width: 764px;
+  width: 95%;
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.waves-heading,
+.library-btn {
+  color: white;
+}
+
+.visualizer {
+  height: 120px;
+	width: 100%;
+	display: flex;
+  max-width: 300px;
+	align-items: center;
+	justify-content: center;
+	gap: 3px;
+  position: absolute;
+  z-index: 3;
+  padding: 0 20px;
+}
+
+
+
+.track {
+  width: 3%;
+  height: 10%;
+  background: green;
+  /* background: var(--violet); */
+  transition: 0.01s;
+}
+
+.track:nth-child(2n) {
+  height: 15%;
+}
+
+.track:nth-child(3n) {
+  height: 20%;
+}
+
+.track:nth-child(7n) {
+  height: 35%;
+}
+
+#toggle-play {
+  border: none;
+  background-color: transparent;
+  fill: var(--violet);
+  min-height: 25px;
+  min-width: 25px;
+  width: 2%;
+  height: 2%;
+  position: absolute;
+  top: 85vh;
+  left: 49vw;
+}
+
+#togglePlay:hover {
+  cursor: pointer;
+}
+
+
+.navContainer {
+  width: 100%;
+  min-height: 10vh;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  h1{
+    color:white;
+  }
+  button {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    border: 2px solid rgb(65, 65, 65);
+    padding: 0.8rem;
+    color: white;
+    transition: all 0.3s ease;
+    &:hover {
+      background: rgb(65, 65, 65);
+      color: white;
+    }
+  }
+  @media screen and (max-width: 768px) {
+    button {
+      z-index: 10;
+    }
+  }
+}
+
+
+.songContainer {
+  min-height: 40vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  width: 80%;
+  outline: 2px solid white;
+  max-width: 300px;
+  position: relative;
+}
+
+.featureCompo img {
+  box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+  width: 100%;
+  object-fit: cover;
+  height: 100%;
+  position: absolute;
+  z-index: 1; /* Ensure the image is under the overlay */
+  top: 0;
+  left: 0;
+}
+.featureCompo::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5); /* Dark overlay */
+  z-index: 2; /* Overlay above the image */
+}
+
+
+.audioInfo{
+  width: 100%;
+  max-width: 300px;
+  h2 {
+    color: white;
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+  }
+  h3 {
+    font-size: 1rem;
+    color: white;
+  }
+}
+
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.rotateSong {
+  animation: rotate 20s linear forwards infinite;
+}
+
+
+.player {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+}
+.timeControl {
+  width: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 20px 0;
+  input {
+    width: 100%;
+    // padding: 1rem 0rem;
+    -webkit-appearance: none;
+    background-color: transparent;
+    cursor: pointer;
+  }
+  p {
+    padding: 1rem;
+    font-weight: 700;
+  }
+}
+
+.playControl {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 10px 0;
+  width: 100%;
+  color: white;
+  svg {
+    cursor: pointer;
+  }
+
+  @media screen and (max-width: 768px) {
+      width: 50%;
+  }
+}
+
+
+@media screen and (max-width: 768px) {
+  .timeControl {
+    width: 90%;
+  }
+}
+
+
+input[type='range']:focus {
+  outline: none;
+}
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  height: 16px;
+  width: 16px;
+}
+
+.trackPlayer {
+  background: lightblue;
+  color: white;
+  width: 100%;
+  height: 1rem;
+  position: relative;
+  border-radius: 1rem;
+  overflow: hidden;
+}
+
+.animateTrack {
+  background: rgb(204, 204, 204);
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: translateX(0%);
+  pointer-events: none;
+}
+
+.songTime {
+  color: white;
+}

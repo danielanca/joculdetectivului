@@ -17,21 +17,21 @@
   }
 }
 
-.library-song {
+.librarySong {
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: 1rem 2rem 1rem 2rem;
   color: white;
-  // img {
-  //   width: 30%;
-  // }
+  cursor: pointer;
+  align-items: flex-start;
+
   &:hover {
     background: rgb(58, 58, 58);
   }
 }
-.song-description {
-  padding-left: 1rem;
+.songDescription {
+  width: 50%;
   h3 {
     font-size: 1rem;
     color: white;
@@ -59,6 +59,7 @@
 .active {
   transform: translateX(0%);
   opacity: 1;
+  background-color: black;
 }
 @media screen and (max-width: 768px) {
   .library {
