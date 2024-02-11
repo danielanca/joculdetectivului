@@ -1,11 +1,11 @@
-import React, { useContext, useState } from "react";
+import React, { useContext, useState } from 'react';
 
 export interface Context {
   name: string;
   setName: (val: string) => void;
 }
 const defaultVal = {
-  name: "",
+  name: '',
   setName: () => {},
 } as Context;
 
