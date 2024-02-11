@@ -81,26 +81,11 @@ const AudioPlayer = () => {
 }, [currentSong.audio, isPlaying]);
   const dragHandler = (e: React.ChangeEvent<HTMLInputElement>) => {
     // setIsDragging(true);
-    // const currentTime = Number(e.target.value);
-    // console.log('dragHandler called: audioRef current vs. currentTime' , audioRef.current.currentTime, currentTime);
-    // audioRef.current.currentTime = currentTime;
-    // console.log('Setting currentTime to:', currentTime);
-    // setSongInfo({ ...songInfo, currentTime });
-
-
-    audioRef.current.currentTime= 30;
-
-    // const currentTime = parseFloat(e.target.value);
-    // console.log('dragHandler called: Current vs. New Time', audioRef.current?.currentTime, currentTime);
-    // if (audioRef.current) {
-    //     audioRef.current.currentTime = currentTime;
-    //     console.log('Setting currentTime to:', currentTime);
-    //     // Only update the state necessary for UI, don't trigger unnecessary re-renders
-    //     setSongInfo(prev => ({
-    //         ...prev,
-    //         currentTime
-    //     }));
-    // }
+    const currentTime = Number(e.target.value);
+    console.log('dragHandler called: audioRef current vs. currentTime' , audioRef.current.currentTime, currentTime);
+    audioRef.current.currentTime = currentTime;
+    console.log('Setting currentTime to:', currentTime);
+    setSongInfo({ ...songInfo, currentTime });
   };
 
   const skipTrackHandler = async (direction: string) => {
@@ -221,10 +206,8 @@ const AudioPlayer = () => {
             <div key={index} className={styles.track}></div>
           ))}
         </div>
-        
         </div>
 
-       
         <div className={styles.audioInfo}>
           <h2 className={styles.songName}>{currentSong.name}</h2>
           <h3 className={styles.songArtistName}>{currentSong.artist}</h3>
@@ -271,10 +254,10 @@ const AudioPlayer = () => {
           onLoadedMetadata={timeUpdateHandler}
           onTimeUpdate={timeUpdateHandler}
           src={currentSong.audio}
-          crossOrigin='anonymous'
           ref={audioRef}
           onEnded={songEndHandler}
-        ></audio>
+        />
+
       </div>
     </div>
   );

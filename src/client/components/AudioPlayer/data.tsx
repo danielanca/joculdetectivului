@@ -1,5 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 
+import trapbeat from './../../media/audiofiles/trap-beat.mp3';
+
 export interface SongTypes {
   name: string;
   cover: string;
@@ -17,7 +19,17 @@ function chillHop() {
       cover:
         'https://chillhop.com/wp-content/uploads/2020/09/0255e8b8c74c90d4a27c594b3452b2daafae608d-1024x1024.jpg',
       artist: 'Aso, Middle School, Aviino',
-      audio: 'https://cdn.pixabay.com/download/audio/2023/03/01/audio_74accea696.mp3?filename=trap-beat-dark-autumn-night-141114.mp3',
+      audio: trapbeat,
+      color: ['#205950', '#2ab3bf'],
+      id: uuidv4(),
+      active: true,
+    },
+    {
+      name: 'Beaver Creek xxxx',
+      cover:
+        'https://chillhop.com/wp-content/uploads/2020/09/0255e8b8c74c90d4a27c594b3452b2daafae608d-1024x1024.jpg',
+      artist: 'Aso, Middle School, Aviino',
+      audio: trapbeat,
       color: ['#205950', '#2ab3bf'],
       id: uuidv4(),
       active: true,
