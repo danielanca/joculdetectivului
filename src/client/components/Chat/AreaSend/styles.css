@@ -1,0 +1,78 @@
+.areaSend {
+  width: 100%;
+  height: 70px;
+  bottom: 0;
+  background-color: #f0f0f0;
+  display: grid;
+  padding-left: 20px;
+  padding-right: 10px;
+  align-items: center;
+  grid-template-columns: 90px 1fr 50px;
+}
+
+.emogisLeft {
+  height: 40px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+}
+
+.iconEmogi {
+  font-size: 30px;
+  color: #919191;
+  cursor: pointer;
+}
+
+.iconPaperClip {
+  font-size: 22px;
+  color: #919191;
+  cursor: pointer;
+}
+
+.areaInputMessage {
+  width: 100%;
+  height: 42px;
+  background-color: #fff;
+  border-radius: 50px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+}
+
+.inputMessage {
+  height: 40px;
+  width: 100%;
+  border: 0;
+  padding: 8px 10px;
+  font-size: 15px;
+  color: #4a4a4a;
+  font-weight: 400;
+
+  resize: none;
+}
+
+.inputMessage:focus {
+  outline: none;
+}
+
+.emogiRight {
+  width: 100%;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.iconMicrofone {
+  font-size: 22px;
+  color: #919191;
+  cursor: pointer;
+}
+
+.iconPaperPlane {
+  font-size: 22px;
+  color: #919191;
+  cursor: pointer;
+  transform: rotate(40deg);
+}

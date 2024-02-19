@@ -1,0 +1,62 @@
+[
+    {
+        "id" : 1,
+        "name" : "Contato 1",
+        "phone" : "11999999999",
+        "avatar" : "1.jpg"
+    },
+    {
+        "id" : 2,
+        "name" : "Contato 2",
+        "phone" : "11988888888",
+        "avatar" : "2.jpg"
+    },
+    {
+        "id" : 3,
+        "name" : "Contato 3",
+        "phone" : "11977777777",
+        "avatar" : "3.jpg"
+    },
+    {
+        "id" : 4,
+        "name" : "Contato 4",
+        "phone" : "11966666666",
+        "avatar" : "4.jpg"
+    },
+    {
+        "id" : 5,
+        "name" : "Contato 5",
+        "phone" : "11955555555",
+        "avatar" : "5.jpg"
+    },
+    {
+        "id" : 6,
+        "name" : "Contato 6",
+        "phone" : "11944444444",
+        "avatar" : "6.jpg"
+    },
+    {
+        "id" : 7,
+        "name" : "Contato 7",
+        "phone" : "11933333333",
+        "avatar" : "7.jpg"
+    },
+    {
+        "id" : 8,
+        "name" : "Contato 8",
+        "phone" : "11922222222",
+        "avatar" : "8.jpg"
+    },
+    {
+        "id" : 9,
+        "name" : "Contato 9",
+        "phone" : "11911111111",
+        "avatar" : "9.jpg"
+    },
+    {
+        "id" : 10,
+        "name" : "Contato 10",
+        "phone" : "11900000000",
+        "avatar" : "10.jpg"
+    }
+]

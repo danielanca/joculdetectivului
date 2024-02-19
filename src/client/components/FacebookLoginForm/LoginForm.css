@@ -1,0 +1,72 @@
+.sign-in_container {
+  width: 70%;
+  margin: 20px auto;
+  padding: 30px;
+  box-shadow: rgba(0, 0, 0, 0.24) 0px 3px 8px;
+}
+
+.login_heading {
+  font-size: 30px;
+  font-weight: 500;
+  margin: 0 0 20px 0;
+  text-align: center;
+}
+
+/* .input-container {
+  padding: 6px;
+} */
+
+.input-field {
+  border-radius: 6px;
+  font-size: 17px;
+  border: 0.5px solid;
+  /* padding: 14px 17px; */
+  width: 100%;
+  margin: auto;
+  padding: 10px;
+  margin: 10px 0;
+  -webkit-box-sizing: border-box;
+  -moz-box-sizing: border-box;
+  box-sizing: border-box;
+}
+
+.chat-login-btn {
+  background-color: #1877f2;
+  width: 100%;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 20px;
+  line-height: 48px;
+  padding: 0 16px;
+  text-align: center;
+  text-shadow: none;
+  vertical-align: middle;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.chat-login-btn_container {
+  background-color: #1877f2;
+  border-radius: 6px;
+}
+
+.forgotten-account_link_container {
+  text-align: center;
+  margin: 20px 0;
+  color: #1877f2;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+@media screen and (max-width: 481px) {
+  .input-field {
+    padding: 5px;
+    margin: 7px 0;
+  }
+
+  .sign-in_container {
+    width: 100%;
+    margin-top: 0;
+  }
+}

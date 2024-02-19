@@ -1,0 +1,72 @@
+[
+    {
+        "id": 1,
+        "contact_id": 1,
+        "last_message_id": 3,
+        "not_read": 1,
+        "deleted": false
+    },
+    {
+        "id": 2,
+        "contact_id": 2,
+        "last_message_id": 6,
+        "not_read": 1,
+        "deleted": false
+    },
+    {
+        "id": 3,
+        "contact_id": 3,
+        "last_message_id": 9,
+        "not_read": 1,
+        "deleted": false
+    },
+    {
+        "id": 4,
+        "contact_id": 4,
+        "last_message_id": 12,
+        "not_read": 1,
+        "deleted": false
+    },
+    {
+        "id": 5,
+        "contact_id": 5,
+        "last_message_id": 15,
+        "not_read": 1,
+        "deleted": false
+    },
+    {
+        "id": 6,
+        "contact_id": 6,
+        "last_message_id": 18,
+        "not_read": 1,
+        "deleted": false
+    },
+    {
+        "id": 7,
+        "contact_id": 7,
+        "last_message_id": 21,
+        "not_read": 1,
+        "deleted": false
+    },
+    {
+        "id": 8,
+        "contact_id": 8,
+        "last_message_id": 24,
+        "not_read": 1,
+        "deleted": false
+    },
+    {
+        "id": 9,
+        "contact_id": 9,
+        "last_message_id": 27,
+        "not_read": 1,
+        "deleted": false
+    },
+    {
+        "id": 10,
+        "contact_id": 10,
+        "last_message_id": 30,
+        "not_read": 1,
+        "deleted": false
+    }
+]

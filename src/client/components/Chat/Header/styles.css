@@ -1,0 +1,46 @@
+.chatHeader{
+    height: 60px;
+    width: 100%;
+    padding: 10px 16px;
+    display: flex;
+    background-color: #ededed;
+    justify-content: space-between;
+}
+
+.headerLeft{
+    display: flex;
+    align-items: center;
+    width: 100%;
+    cursor: pointer;
+}
+
+.headerLeft h3 {
+    font-size: 16px;
+    font-weight: 300;
+    margin-left: 15px;
+}
+
+.headerRight{
+    display: flex;
+    align-items: center;
+    width: 90px;
+    justify-content: space-around;
+}
+
+.iconHeader{
+    color: #919191;
+    cursor: pointer;
+}
+
+.imgProfile{
+    height: 40px;
+    width: 40px;
+    border-radius: 50%;
+    display: flex;
+}
+
+/* @media screen and (max-width: 330px) {
+    .chatHeader{
+        width: 320px;
+    }
+} */
