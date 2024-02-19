@@ -1,13 +1,14 @@
-import publicRoutes from "./publicRoutes";
-import adminRoutes from "./adminRoutes";
-import shopRoutes from "./shopRoutes";
-import gameRoutes from "./gameRoutes";
+import publicRoutes from './publicRoutes';
+import shopRoutes from './shopRoutes';
+import gameRoutes from './gameRoutes';
+import chatRoutes from './chatRoutes';
 
 const routes = [
-    ...publicRoutes,
-    // ...adminRoutes,
-    // ...shopRoutes,
-    ...gameRoutes
-]
+  ...publicRoutes,
+  // ...adminRoutes,
+  // ...shopRoutes,
+  ...gameRoutes,
+  ...chatRoutes,
+];
 
 export default routes;

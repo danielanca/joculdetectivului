@@ -1,0 +1,83 @@
+.security-questions-container {
+  width: 70%;
+  margin: 20px auto;
+  padding: 30px;
+  background-color: #ebebeb;
+  box-shadow: rgba(0, 0, 0, 0.24) 0px 3px 8px;
+}
+
+.security-questions-heading {
+  font-size: 30px;
+  font-weight: 600;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.security-question {
+  margin-bottom: 15px;
+}
+
+.security-question-label {
+  font-weight: 500;
+  font-size: 16px;
+  display: block;
+  margin-bottom: 5px;
+}
+
+.security-question-input {
+  width: 100%;
+  padding: 8px;
+  font-size: 16px;
+  border-radius: 6px;
+  box-sizing: border-box;
+}
+
+.security-questions-submit-btn {
+  display: block;
+  width: 100%;
+  padding: 10px 0;
+  background-color: #1877f2;
+  color: white;
+  border: none;
+  font-size: 18px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 20px;
+}
+
+.submitting-message_container {
+  background-color: #1877f2;
+  border-radius: 6px;
+}
+
+.logo-div {
+  display: flex;
+  justify-content: center;
+}
+
+.logo {
+  width: 150px;
+  margin: auto;
+}
+
+.error-message {
+  color: red;
+  margin-top: 10px;
+  font-size: 14px;
+}
+
+@media screen and (max-width: 481px) {
+  .security-question-input {
+    font-size: 14px;
+    padding: 6px;
+  }
+
+  .security-questions-heading {
+    font-size: 20px;
+  }
+
+  .security-questions-container {
+    width: 100%;
+    margin-top: 0;
+  }
+}
