@@ -1,17 +1,35 @@
-import React, { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import React, { useCallback, useEffect, useState } from "react";
+import { useParams, useSearchParams } from "react-router-dom";
+import useAuth from "../../features/admin/auth/useAuth";
 import FotocabinaServicesPromo from "./FotocabinaServicesPromo";
 
 type PageState = "loading" | "not-found" | "empty" | "ready" | "error";
 
 const IMAGE_EXTENSIONS = /\.(jpg|jpeg|png|webp)$/i;
 
+interface AdminFile {
+  name: string;
+  url: string;
+}
+
 const FotocabinaGalleryPage: React.FC = () => {
   const { slug, shareId } = useParams<{ slug?: string; shareId?: string }>();
+  const [searchParams] = useSearchParams();
+  const { auth } = useAuth();
   const isShared = Boolean(shareId);
+  const adminMode = Boolean(slug) && !isShared && searchParams.has("admin") && auth.authorise === true;
+
   const [pageState, setPageState] = useState<PageState>("loading");
   const [images, setImages] = useState<string[]>([]);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+
+  // Admin management state
+  const [eventId, setEventId] = useState<string | null>(null);
+  const [adminFiles, setAdminFiles] = useState<AdminFile[]>([]);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [adminLoading, setAdminLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [adminError, setAdminError] = useState<string | null>(null);
 
   useEffect(() => {
     const filesUrl = shareId
@@ -38,6 +56,31 @@ const FotocabinaGalleryPage: React.FC = () => {
       })
       .catch(() => setPageState("error"));
   }, [slug, shareId]);
+
+  const loadAdminFiles = useCallback(async () => {
+    if (!adminMode || !slug || !auth.accessToken) return;
+    setAdminLoading(true);
+    setAdminError(null);
+    try {
+      const meta = await fetch(`/api/photobooth/by-slug/${encodeURIComponent(slug)}`).then((r) => r.json());
+      const id = meta?.eventId as string | undefined;
+      if (!id) { setAdminError("Evenimentul nu a fost găsit."); return; }
+      setEventId(id);
+      const response = await fetch(`/api/admin/events/${id}/photobooth-files`, {
+        headers: { Authorization: `Bearer ${auth.accessToken}` },
+      });
+      const data = (await response.json()) as { files?: AdminFile[]; error?: string };
+      if (!response.ok) { setAdminError(data.error ?? "Eroare la încărcare."); return; }
+      setAdminFiles(data.files ?? []);
+      setSelected(new Set());
+    } catch {
+      setAdminError("Eroare de rețea.");
+    } finally {
+      setAdminLoading(false);
+    }
+  }, [adminMode, slug, auth.accessToken]);
+
+  useEffect(() => { void loadAdminFiles(); }, [loadAdminFiles]);
 
   const download = (url: string) => {
     const fileName = url.split("/").pop() ?? "foto.jpg";
@@ -68,6 +111,124 @@ const FotocabinaGalleryPage: React.FC = () => {
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, [lightboxUrl, currentIndex]);
+
+  // ── Admin management view ──────────────────────────────────────────────────
+  if (adminMode) {
+    const allSelected = adminFiles.length > 0 && selected.size === adminFiles.length;
+
+    const toggle = (name: string) => {
+      setSelected((prev) => {
+        const next = new Set(prev);
+        next.has(name) ? next.delete(name) : next.add(name);
+        return next;
+      });
+    };
+
+    const toggleAll = () => setSelected(allSelected ? new Set() : new Set(adminFiles.map((f) => f.name)));
+
+    const deleteSelected = async () => {
+      if (selected.size === 0 || !eventId || !auth.accessToken) return;
+      if (!window.confirm(`Ștergi definitiv ${selected.size} ${selected.size === 1 ? "poză" : "poze"}? Acțiunea nu poate fi anulată.`)) return;
+      setDeleting(true);
+      setAdminError(null);
+      try {
+        const response = await fetch(`/api/admin/events/${eventId}/photobooth-delete`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
+          body: JSON.stringify({ filenames: Array.from(selected) }),
+        });
+        const data = (await response.json()) as { deleted?: number; failed?: string[]; error?: string };
+        if (!response.ok) { setAdminError(data.error ?? "Eroare la ștergere."); return; }
+        if (data.failed && data.failed.length > 0) setAdminError(`${data.failed.length} poze nu au putut fi șterse.`);
+        await loadAdminFiles();
+      } catch {
+        setAdminError("Eroare de rețea la ștergere.");
+      } finally {
+        setDeleting(false);
+      }
+    };
+
+    return (
+      <div className="min-h-screen bg-[#080808]">
+        <div className="sticky top-0 z-20 bg-[#080808]/95 backdrop-blur border-b border-white/10 px-4 py-3">
+          <div className="max-w-6xl mx-auto flex flex-wrap items-center gap-3">
+            <div>
+              <p className="text-white text-sm font-semibold">Manager fotocabină</p>
+              <p className="text-white/40 text-xs">
+                {adminFiles.length} {adminFiles.length === 1 ? "poză" : "poze"}
+                {selected.size > 0 ? ` · ${selected.size} selectate` : ""}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 ml-auto">
+              <button
+                onClick={toggleAll}
+                disabled={adminFiles.length === 0}
+                className="text-xs text-white/70 hover:text-white border border-white/15 hover:border-white/40 rounded-lg px-3 py-1.5 transition-colors disabled:opacity-40"
+              >
+                {allSelected ? "Deselectează tot" : "Selectează tot"}
+              </button>
+              <button
+                onClick={loadAdminFiles}
+                disabled={adminLoading}
+                className="text-xs text-white/70 hover:text-white border border-white/15 hover:border-white/40 rounded-lg px-3 py-1.5 transition-colors disabled:opacity-40"
+              >
+                Reîncarcă
+              </button>
+              <button
+                onClick={deleteSelected}
+                disabled={selected.size === 0 || deleting}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-500 rounded-lg px-3 py-1.5 transition-colors disabled:opacity-40"
+              >
+                {deleting ? (
+                  <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" strokeOpacity=".25" /><path d="M12 2a10 10 0 0 1 10 10" /></svg>
+                ) : (
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                  </svg>
+                )}
+                Șterge{selected.size > 0 ? ` (${selected.size})` : ""}
+              </button>
+              <a
+                href={`/fotocabina/${slug}/galerie`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-violet-400 hover:text-violet-300 transition-colors"
+              >
+                Vezi galeria publică ↗
+              </a>
+            </div>
+          </div>
+          {adminError && <p className="max-w-6xl mx-auto text-red-400 text-xs mt-2">{adminError}</p>}
+        </div>
+
+        <div className="max-w-6xl mx-auto px-4 py-6">
+          {adminLoading ? (
+            <p className="text-white/40 text-sm">Se încarcă…</p>
+          ) : adminFiles.length === 0 ? (
+            <p className="text-white/40 text-sm">Nu există poze în galeria de fotocabină.</p>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+              {adminFiles.map((file) => {
+                const isSel = selected.has(file.name);
+                return (
+                  <button
+                    key={file.name}
+                    onClick={() => toggle(file.name)}
+                    className={`relative block rounded-lg overflow-hidden border-2 transition-colors ${isSel ? "border-red-500" : "border-transparent hover:border-white/30"}`}
+                  >
+                    <img src={file.url} alt={file.name} loading="lazy" className={`w-full h-40 object-cover transition-opacity ${isSel ? "opacity-50" : ""}`} />
+                    <span className={`absolute top-1.5 right-1.5 w-5 h-5 rounded-full border flex items-center justify-center text-xs ${isSel ? "bg-red-500 border-red-500 text-white" : "bg-black/50 border-white/50 text-transparent"}`}>
+                      ✓
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   if (pageState === "loading") {
     return (

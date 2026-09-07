@@ -1300,7 +1300,7 @@ export default function MediaAlbumPage() {
             selectedPrint={selectedPrint}
             onTogglePrint={(fileName) => dispatch({ type: "TOGGLE_PHOTO", mode: "print", name: fileName })}
             getFileName={(src, index) => fileNameFromUrl(album.photos[index] ?? src)}
-            protectImages={!isAdmin && !auth.authorise}
+            protectImages={true}
             onProtectedContextMenu={showImageSaveWarning}
           />
         )}
@@ -1450,7 +1450,7 @@ export default function MediaAlbumPage() {
         {album.featured?.length > 0 && (
           <>
             <h2 className={styles.sectionTitle}>Selectate</h2>
-            <BunnyPhotoGallery orgPhoto={featuredOrgPhotos} photos={album.featured} variant="plain" protectImages={!isAdmin && !auth.authorise} onProtectedContextMenu={showImageSaveWarning} />
+            <BunnyPhotoGallery orgPhoto={featuredOrgPhotos} photos={album.featured} variant="plain" protectImages={true} onProtectedContextMenu={showImageSaveWarning} />
           </>
         )}
 
@@ -1853,7 +1853,7 @@ export default function MediaAlbumPage() {
                   getKey={fileNameFromUrl}
                   onToggle={toggleIgPhoto}
                   mobileColumns={mobileColumns}
-                  protectImages={!isAdmin && !auth.authorise}
+                  protectImages={true}
                   onProtectedContextMenu={showImageSaveWarning}
                 />
               ) : isModerationMode && mode === "none" ? (
@@ -1867,7 +1867,7 @@ export default function MediaAlbumPage() {
                   getKey={fileNameFromUrl}
                   onToggle={toggleModerationPhoto}
                   mobileColumns={mobileColumns}
-                  protectImages={!isAdmin && !auth.authorise}
+                  protectImages={true}
                   onProtectedContextMenu={showImageSaveWarning}
                 />
               ) : isAdmin && mode === "none" ? (
@@ -1882,7 +1882,10 @@ export default function MediaAlbumPage() {
                           className={styles.adminPhotoImg}
                           loading="lazy"
                           onClick={() => openLightbox(src)}
-                          style={{ cursor: 'pointer' }}
+                          style={{ cursor: 'pointer', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
+                          draggable={false}
+                          onContextMenu={(e) => { e.preventDefault(); showImageSaveWarning(); }}
+                          onDragStart={(e) => e.preventDefault()}
                           data-photo-src={src}
                           {...(galleryPhotos.indexOf(src) === 0 ? { 'data-onboarding': 'photo' } : {})}
                         />
@@ -1910,7 +1913,7 @@ export default function MediaAlbumPage() {
                   onToggle={togglePhoto}
                   onPhotoClick={mode === "none" ? openLightbox : undefined}
                   mobileColumns={mobileColumns}
-                  protectImages={!isAdmin && !auth.authorise}
+                  protectImages={true}
                   onProtectedContextMenu={showImageSaveWarning}
                 />
               )}

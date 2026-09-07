@@ -197,6 +197,8 @@ async function loadRouter() {
     postCreateAlbum: getHandler("post", "/events/:id/create-album"),
     postPhotoboothFolder: getHandler("post", "/events/:id/photobooth-folder"),
     postPhotoboothUpload: getHandler("post", "/events/:id/photobooth-upload"),
+    getPhotoboothFiles: getHandler("get", "/events/:id/photobooth-files"),
+    postPhotoboothDelete: getHandler("post", "/events/:id/photobooth-delete"),
     postDetectAlbum: getHandler("post", "/events/:id/detect-album"),
     patchAlbum: getHandler("patch", "/events/:id/album"),
     getAlbumHealthJobs: getHandler("get", "/album-health/jobs"),
@@ -883,6 +885,68 @@ describe("adminEvents routes", () => {
       expect(data.uploaded).toBe(2);
       expect(data.failed).toEqual(["c.txt"]);
       expect(data.total).toBe(3);
+    });
+  });
+
+  // ───────────────── GET /events/:id/photobooth-files ─────────────────
+  describe("GET /events/:id/photobooth-files", () => {
+    test("returns 400 when event has no albumSlug", async () => {
+      const { getPhotoboothFiles, docGetMock } = await loadRouter();
+      docGetMock.mockResolvedValueOnce(makeEventDoc({ albumSlug: undefined }));
+      const res = createMockResponse();
+      await getPhotoboothFiles({ params: { id: "ev-1" } }, res);
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
+
+    test("lists image files from the photobooth folder", async () => {
+      const { getPhotoboothFiles, nodeFetchMock } = await loadRouter();
+      nodeFetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () => [
+          { ObjectName: ".keep", IsDirectory: false },
+          { ObjectName: "a.jpg", IsDirectory: false },
+          { ObjectName: "b.png", IsDirectory: false },
+          { ObjectName: "sub", IsDirectory: true },
+        ],
+      });
+      const res = createMockResponse();
+      await getPhotoboothFiles({ params: { id: "ev-1" } }, res);
+      const data = (res.json as any).mock.calls[0][0];
+      expect(data.files.map((f: any) => f.name)).toEqual(["a.jpg", "b.png"]);
+    });
+
+    test("returns empty list when Bunny listing fails", async () => {
+      const { getPhotoboothFiles, nodeFetchMock } = await loadRouter();
+      nodeFetchMock.mockResolvedValueOnce({ ok: false });
+      const res = createMockResponse();
+      await getPhotoboothFiles({ params: { id: "ev-1" } }, res);
+      expect(res.json).toHaveBeenCalledWith({ files: [] });
+    });
+  });
+
+  // ───────────────── POST /events/:id/photobooth-delete ─────────────────
+  describe("POST /events/:id/photobooth-delete", () => {
+    test("returns 400 when no valid filenames", async () => {
+      const { postPhotoboothDelete } = await loadRouter();
+      const res = createMockResponse();
+      await postPhotoboothDelete({ params: { id: "ev-1" }, body: { filenames: ["../evil", "a/b"] } }, res);
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
+
+    test("deletes selected files and reports counts", async () => {
+      const { postPhotoboothDelete, nodeFetchMock } = await loadRouter();
+      nodeFetchMock.mockResolvedValue({ ok: true });
+      const res = createMockResponse();
+      await postPhotoboothDelete({ params: { id: "ev-1" }, body: { filenames: ["a.jpg", "b.jpg"] } }, res);
+      expect(res.json).toHaveBeenCalledWith({ deleted: 2, failed: [] });
+    });
+
+    test("treats a 404 from Bunny as already deleted", async () => {
+      const { postPhotoboothDelete, nodeFetchMock } = await loadRouter();
+      nodeFetchMock.mockResolvedValue({ ok: false, status: 404 });
+      const res = createMockResponse();
+      await postPhotoboothDelete({ params: { id: "ev-1" }, body: { filenames: ["gone.jpg"] } }, res);
+      expect(res.json).toHaveBeenCalledWith({ deleted: 1, failed: [] });
     });
   });
 

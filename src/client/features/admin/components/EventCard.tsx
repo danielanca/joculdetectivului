@@ -1177,6 +1177,18 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                           {showPhotoboothUploader ? "Ascunde upload" : "Crează Galerie Photobooth"}
                         </button>
                         <a
+                          href={`/fotocabina/${albumSlug}/galerie?admin=1`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-1 text-xs text-neutral-400 hover:text-white border border-neutral-700 hover:border-neutral-500 rounded-lg px-2.5 py-1 transition-colors"
+                        >
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M3 9h18M3 15h18M9 3v18M15 3v18" />
+                          </svg>
+                          Gestionează pozele ↗
+                        </a>
+                        <a
                           href={`/fotocabina/${albumSlug}/galerie`}
                           target="_blank"
                           rel="noopener noreferrer"

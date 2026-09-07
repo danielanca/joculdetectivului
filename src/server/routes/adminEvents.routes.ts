@@ -637,6 +637,82 @@ router.post(
   },
 );
 
+// GET /api/admin/events/:id/photobooth-files — list photos currently in {albumSlug}/photobooth/
+router.get("/events/:id/photobooth-files", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const db = firestore();
+    const doc = await db.collection("adminEvents").doc(id).get();
+    if (!doc.exists) return res.status(404).json({ error: "Evenimentul nu a fost găsit." });
+
+    const slug = doc.data()?.albumSlug as string | undefined;
+    if (!slug) return res.status(400).json({ error: "Evenimentul nu are un album slug setat." });
+
+    const listUrl = buildBunnyDirectoryUrl(slug, "photobooth");
+    const listRes = await nodeFetch(listUrl, { headers: { [BUNNY_ACCESS_KEY_HEADER]: getBunnyStorageKey() }, agent: bunnyAgent });
+    if (!listRes.ok) return res.json({ files: [] });
+
+    const entries = await listRes.json() as { ObjectName: string; IsDirectory?: boolean }[];
+    const cdnDomain = (process.env.BUNNY_CDN_DOMAIN ?? "").replace(/\/$/, "");
+    const files = entries
+      .filter((e) => !e.IsDirectory && PHOTOBOOTH_IMAGE_EXT.test(e.ObjectName))
+      .map((e) => ({
+        name: e.ObjectName,
+        url: cdnDomain ? `${cdnDomain}/${slug}/photobooth/${e.ObjectName}` : "",
+      }));
+
+    res.json({ files });
+  } catch (error) {
+    console.error("[adminEvents] photobooth-files failed:", error);
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+// POST /api/admin/events/:id/photobooth-delete — delete selected photos from {albumSlug}/photobooth/
+router.post("/events/:id/photobooth-delete", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const raw = (req.body as { filenames?: unknown }).filenames;
+    const filenames = Array.isArray(raw)
+      ? raw.filter((n): n is string => typeof n === "string" && n.length > 0 && !n.includes("/") && !n.includes("\\") && !n.includes(".."))
+      : [];
+    if (filenames.length === 0) return res.status(400).json({ error: "Niciun fișier de șters." });
+
+    const db = firestore();
+    const doc = await db.collection("adminEvents").doc(id).get();
+    if (!doc.exists) return res.status(404).json({ error: "Evenimentul nu a fost găsit." });
+
+    const slug = doc.data()?.albumSlug as string | undefined;
+    if (!slug) return res.status(400).json({ error: "Evenimentul nu are un album slug setat." });
+
+    const storageKey = getBunnyStorageKey();
+    const failed: string[] = [];
+    let deleted = 0;
+
+    await Promise.all(
+      filenames.map(async (name) => {
+        try {
+          const delRes = await nodeFetch(buildBunnyStorageUrl(slug, "photobooth", name), {
+            method: "DELETE",
+            headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey },
+            agent: bunnyAgent,
+          });
+          if (delRes.ok || delRes.status === 404) deleted++;
+          else failed.push(name);
+        } catch {
+          failed.push(name);
+        }
+      }),
+    );
+
+    if (deleted > 0) invalidateAlbumCache(slug);
+    res.json({ deleted, failed });
+  } catch (error) {
+    console.error("[adminEvents] photobooth-delete failed:", error);
+    res.status(500).json({ error: String(error) });
+  }
+});
+
 // Checks if a Bunny folder already exists for the given slug and auto-links it to the event
 router.post("/events/:id/detect-album", async (req: Request, res: Response) => {
   try {
