@@ -482,6 +482,8 @@ export default function QRMomentsAdminPage() {
   const [editorError, setEditorError] = useState<string | null>(null);
   const [deleteCommentConfirmation, setDeleteCommentConfirmation] = useState<QRComment | null>(null);
   const [deleteUploadConfirmation, setDeleteUploadConfirmation] = useState<QRUpload | null>(null);
+  const [deleteGuestUploadsConfirmation, setDeleteGuestUploadsConfirmation] = useState<QRGuest | null>(null);
+  const [busyGuestId, setBusyGuestId] = useState<string | null>(null);
   const [pinResetConfirmation, setPinResetConfirmation] = useState(false);
   const [deleteEventConfirmation, setDeleteEventConfirmation] = useState<QREventListItem | null>(null);
   const [deletingEvent, setDeletingEvent] = useState(false);
@@ -715,6 +717,35 @@ export default function QRMomentsAdminPage() {
     }
   };
 
+  const handleDeleteGuestUploads = async (guestId: string) => {
+    setBusyGuestId(guestId);
+    try {
+      const result = await fetch(`/api/qr-moments/admin/${selectedEventSlug}/guest/${guestId}/uploads`, {
+        method: "DELETE",
+        headers: authHeader,
+      }).then((response) => response.json());
+
+      if (result.ok) {
+        setOverview((previous) => {
+          if (!previous) return previous;
+          const removedIds = new Set(previous.uploads.filter((u) => u.guestId === guestId).map((u) => u.id));
+          return {
+            ...previous,
+            uploads: previous.uploads.filter((upload) => !removedIds.has(upload.id)),
+            comments: previous.comments.filter((comment) => !removedIds.has(comment.uploadId)),
+            guests: previous.guests.map((guest) => guest.id === guestId ? { ...guest, uploadIds: [] } : guest),
+          };
+        });
+      } else {
+        setError(result.error ?? "Nu s-au putut șterge upload-urile invitatului.");
+      }
+    } catch {
+      setError("Nu s-au putut șterge upload-urile invitatului.");
+    } finally {
+      setBusyGuestId(null);
+    }
+  };
+
   const handleDeleteEvent = async (eventSlug: string) => {
     setDeletingEvent(true);
     try {
@@ -806,6 +837,20 @@ export default function QRMomentsAdminPage() {
           onConfirm={() => {
             handleDeleteUpload(deleteUploadConfirmation.id).catch(() => {});
             setDeleteUploadConfirmation(null);
+          }}
+        />
+      )}
+
+      {deleteGuestUploadsConfirmation && (
+        <ConfirmModal
+          title="Ștergi tot ce a încărcat invitatul?"
+          message={`Toate upload-urile lui ${deleteGuestUploadsConfirmation.name || deleteGuestUploadsConfirmation.email || "acest invitat"} vor fi șterse din Bunny și din Firestore, împreună cu comentariile lor. Invitatul rămâne înregistrat. Această acțiune nu poate fi anulată.`}
+          confirmLabel="Șterge tot"
+          variant="danger"
+          onCancel={() => setDeleteGuestUploadsConfirmation(null)}
+          onConfirm={() => {
+            handleDeleteGuestUploads(deleteGuestUploadsConfirmation.id).catch(() => {});
+            setDeleteGuestUploadsConfirmation(null);
           }}
         />
       )}
@@ -1138,7 +1183,9 @@ export default function QRMomentsAdminPage() {
                     <div className="rounded-2xl border border-neutral-900 bg-neutral-950 py-16 text-center">
                       <p className="text-neutral-500 text-sm">Niciun invitat înregistrat pentru acest eveniment.</p>
                     </div>
-                  ) : overview.guests.map((guest) => (
+                  ) : overview.guests.map((guest) => {
+                    const guestUploadCount = overview.uploads.filter((upload) => upload.guestId === guest.id).length;
+                    return (
                     <div key={guest.id} className="rounded-2xl border border-neutral-900 bg-neutral-950 p-4">
                       <div className="flex items-start justify-between gap-4">
                         <div>
@@ -1153,8 +1200,20 @@ export default function QRMomentsAdminPage() {
                           </p>
                         </div>
                       </div>
+                      {guestUploadCount > 0 && (
+                        <div className="mt-3 flex justify-end">
+                          <button
+                            onClick={() => setDeleteGuestUploadsConfirmation(guest)}
+                            disabled={busyGuestId === guest.id}
+                            className="px-3 py-1.5 rounded-lg border border-red-500/20 text-red-400 text-xs hover:border-red-500/40 hover:text-red-300 disabled:opacity-50 transition-colors"
+                          >
+                            {busyGuestId === guest.id ? "Se șterge..." : `Șterge toate cele ${guestUploadCount} upload-uri`}
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  ))}
+                  );
+                  })}
                 </div>
               ) : (
                 <div className="space-y-3">

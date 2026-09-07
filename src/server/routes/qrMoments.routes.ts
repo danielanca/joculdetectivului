@@ -1873,6 +1873,58 @@ router.delete('/admin/upload/:uploadId', requireFirebaseAuth, requireSupremeAdmi
   }
 });
 
+// ─── Admin: delete ALL uploads from one guest ───────────────────────────────
+
+router.delete('/admin/:eventSlug/guest/:guestId/uploads', requireFirebaseAuth, requireSupremeAdmin, async (request: Request, response: Response) => {
+  const { eventSlug, guestId } = request.params;
+
+  try {
+    const uploadsSnapshot = await firestore()
+      .collection(QR_UPLOADS)
+      .where('eventSlug', '==', eventSlug)
+      .where('guestId', '==', guestId)
+      .get();
+
+    if (uploadsSnapshot.empty) {
+      response.json({ ok: true, deleted: 0 });
+      return;
+    }
+
+    const uploadIds = uploadsSnapshot.docs.map((doc) => doc.id);
+    const accessKey = getBunnyStorageKey();
+
+    // Best-effort binary cleanup — a file already gone from Bunny must not block
+    // the Firestore cleanup.
+    await Promise.all(uploadsSnapshot.docs.map(async (doc) => {
+      const data = doc.data();
+      const storedAlbumSlug = data.albumSlug as string | undefined;
+      const storageUrl = storedAlbumSlug
+        ? buildBunnyUploadUrl(storedAlbumSlug, data.guestId as string, data.fileName as string)
+        : buildBunnyStorageUrl('qr-moments', eventSlug, data.guestId as string, data.fileName as string);
+      await fetch(storageUrl, { method: 'DELETE', headers: { [BUNNY_ACCESS_KEY_HEADER]: accessKey } }).catch(() => {});
+    }));
+
+    const commentsSnapshot = await firestore()
+      .collection(QR_COMMENTS)
+      .where('eventSlug', '==', eventSlug)
+      .get();
+    const staleComments = commentsSnapshot.docs.filter((doc) => uploadIds.includes(doc.data().uploadId as string));
+
+    await Promise.all([
+      ...uploadsSnapshot.docs.map((doc) => doc.ref.delete()),
+      ...staleComments.map((doc) => doc.ref.delete()),
+      firestore().collection(QR_GUESTS).doc(guestId).update({
+        uploadIds: FieldValue.arrayRemove(...uploadIds),
+      }).catch(() => {}),
+    ]);
+
+    response.json({ ok: true, deleted: uploadIds.length });
+  } catch (error) {
+    console.error('[qr-moments] bulk delete guest uploads failed:', error);
+    response.status(500).json({ error: 'Nu s-au putut șterge upload-urile invitatului.' });
+  }
+});
+
 // ─── Admin: delete comment ───────────────────────────────────────────────────
 
 router.delete('/admin/comment/:commentId', requireFirebaseAuth, requireSupremeAdmin, async (request: Request, response: Response) => {

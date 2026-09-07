@@ -81,7 +81,38 @@ const bootstrapUsercentrics = () => {
   document.head.appendChild(script);
 };
 
-bootstrapUsercentrics();
+// Intarzie incarcarea CMP-ului pana cand utilizatorul incepe sa miste mouse-ul
+// sau degetul pe pagina (fara fallback pe timp).
+const scheduleUsercentrics = () => {
+  if (typeof window === "undefined" || typeof document === "undefined") {
+    return;
+  }
+
+  // Pe local / rute suprimate nu are rost sa atasam listenerii.
+  if (LOCAL_HOSTS.has(window.location.hostname)) {
+    bootstrapUsercentrics();
+    return;
+  }
+  if (SUPPRESS_UC_PREFIXES.some((p) => window.location.pathname.startsWith(p))) {
+    return;
+  }
+
+  const INTERACTION_EVENTS = ["pointermove", "touchstart", "touchmove", "scroll", "wheel"];
+  let started = false;
+
+  const start = () => {
+    if (started) {
+      return;
+    }
+    started = true;
+    INTERACTION_EVENTS.forEach((evt) => window.removeEventListener(evt, start));
+    bootstrapUsercentrics();
+  };
+
+  INTERACTION_EVENTS.forEach((evt) => window.addEventListener(evt, start, { once: true, passive: true }));
+};
+
+scheduleUsercentrics();
 
 if (!LOCAL_HOSTS.has(window.location.hostname)) {
   import("./firebase").then(({ auth }) => {

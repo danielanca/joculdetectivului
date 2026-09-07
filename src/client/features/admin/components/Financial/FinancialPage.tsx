@@ -85,18 +85,32 @@ function calcPfaTax(taxableBase: number): {
   impozit: number;
   cassBase: number;
   cass: number;
+  casBase: number;
+  cas: number;
   total: number;
 } {
-  const impozit = Math.round(Math.max(0, taxableBase) * 0.1 * 100) / 100;
+  const base = Math.max(0, taxableBase);
 
+  // Impozit pe venit — 10% din venitul net.
+  const impozit = Math.round(base * 0.1 * 100) / 100;
+
+  // CASS (sănătate) — 10% aplicat pe o bază plafonată la 6 / 12 / 24 salarii
+  // minime, în funcție de nivelul venitului net.
   let cassBase = 0;
-  if (taxableBase >= 24 * SMIN_2026) cassBase = 24 * SMIN_2026;
-  else if (taxableBase >= 12 * SMIN_2026) cassBase = 12 * SMIN_2026;
-  else if (taxableBase >= 6 * SMIN_2026) cassBase = 6 * SMIN_2026;
-
+  if (base >= 24 * SMIN_2026) cassBase = 24 * SMIN_2026;
+  else if (base >= 12 * SMIN_2026) cassBase = 12 * SMIN_2026;
+  else if (base >= 6 * SMIN_2026) cassBase = 6 * SMIN_2026;
   const cass = Math.round(cassBase * 0.1 * 100) / 100;
-  const total = impozit + cass;
-  return { impozit, cassBase, cass, total };
+
+  // CAS (pensie) — 25%, datorat doar dacă venitul net atinge 12 salarii minime;
+  // baza este 12 sau 24 de salarii minime. Sub prag = 0 (opțional de plătit).
+  let casBase = 0;
+  if (base >= 24 * SMIN_2026) casBase = 24 * SMIN_2026;
+  else if (base >= 12 * SMIN_2026) casBase = 12 * SMIN_2026;
+  const cas = Math.round(casBase * 0.25 * 100) / 100;
+
+  const total = impozit + cass + cas;
+  return { impozit, cassBase, cass, casBase, cas, total };
 }
 
 interface State {
@@ -258,6 +272,26 @@ function fmtCurrency(amount: number, currency = "RON"): string {
 
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString("ro-RO", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+// Match each whitespace-separated word independently against a normalised
+// haystack (accents stripped, punctuation flattened to spaces). This makes
+// "craft up" find "CraftUp SRL", "craft-up" and "CRAFTUP.io" alike.
+const COMBINING_MARKS = /[̀-ͯ]/g;
+function normaliseForSearch(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize("NFD").replace(COMBINING_MARKS, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function matchesSearch(query: string, parts: Array<string | null | undefined>): boolean {
+  const words = normaliseForSearch(query).split(" ").filter(Boolean);
+  if (words.length === 0) return true;
+  const haystack = normaliseForSearch(parts.filter(Boolean).join(" "));
+  const collapsed = haystack.replace(/ /g, "");
+  return words.every((word) => haystack.includes(word) || collapsed.includes(word));
 }
 
 let activeInfoBadgeId: string | null = null;
@@ -1343,23 +1377,18 @@ const FinancialPage: React.FC = () => {
   }, [state.invoices, state.expenses, exchangeRate]);
 
   const filteredExpenses = useMemo(() => {
-    const q = state.expenseSearch.trim().toLowerCase();
+    const q = state.expenseSearch.trim();
     if (!q) return state.expenses;
-    return state.expenses.filter((exp) => {
-      const haystack = [exp.supplier, exp.description, fmtDate(exp.date), exp.date]
-        .filter(Boolean).join(" ").toLowerCase();
-      return haystack.includes(q);
-    });
+    return state.expenses.filter((exp) =>
+      matchesSearch(q, [exp.supplier, exp.description, fmtDate(exp.date), exp.date]));
   }, [state.expenses, state.expenseSearch]);
 
   const filteredInvoices = useMemo(() => {
-    const q = state.invoiceSearch.trim().toLowerCase();
+    const q = state.invoiceSearch.trim();
     if (!q) return state.invoices;
     return state.invoices.filter((inv) => {
       const ref = inv.invoiceRef ?? `${inv.series}-${String(inv.invoiceNumber).padStart(4, "0")}`;
-      const haystack = [inv.clientName, ref, fmtDate(inv.date), inv.date]
-        .filter(Boolean).join(" ").toLowerCase();
-      return haystack.includes(q);
+      return matchesSearch(q, [inv.clientName, ref, fmtDate(inv.date), inv.date]);
     });
   }, [state.invoices, state.invoiceSearch]);
 
@@ -1631,6 +1660,14 @@ const FinancialPage: React.FC = () => {
                         <span className="text-neutral-400">CASS (10%)</span>
                         <span className="text-amber-400 font-medium">{fmtCurrency(tax.cass, "RON")}</span>
                       </div>
+                      <div className="flex justify-between">
+                        <span className="text-neutral-400">Bază CAS (pensie)</span>
+                        <span className="text-white">{tax.casBase > 0 ? fmtCurrency(tax.casBase, "RON") : <span className="text-neutral-500">sub prag</span>}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-neutral-400">CAS (25%)</span>
+                        <span className="text-amber-400 font-medium">{fmtCurrency(tax.cas, "RON")}</span>
+                      </div>
                     </div>
                     <div className="border-t border-neutral-800 pt-3">
                       <span className="text-xs text-neutral-500">Total estimat</span>
@@ -1639,9 +1676,86 @@ const FinancialPage: React.FC = () => {
                     {overview.taxableBase <= 0 && (
                       <p className="text-xs text-neutral-600">Nicio taxă estimată — cheltuielile depășesc incasările.</p>
                     )}
-                    <p className="text-xs text-neutral-600">Estimare orientativă · SMIN 2026 = 3.700 RON · Curs EUR = {exchangeRate} RON · plată anuală unică (D212), nu în rate trimestriale</p>
+                    <p className="text-xs text-neutral-600">Estimare orientativă · SMIN 2026 = 3.700 RON · Curs EUR = {exchangeRate} RON · plată anuală unică (D212), nu în rate trimestriale · CAS (pensie) devine obligatoriu de la 12 salarii minime (44.400 RON) venit net</p>
                   </div>
                 </>
+              );
+            })()}
+
+            {/* Proiecție an — doar pentru anul curent, când există venit */}
+            {state.selectedYear === CURRENT_YEAR && overview.totalIncome > 0 && (() => {
+              const now = new Date();
+              const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+              const monthsElapsed = now.getMonth() + now.getDate() / daysInMonth;
+              if (monthsElapsed < 0.5) return null;
+
+              const factor = 12 / monthsElapsed;
+              const currentBase = Math.max(0, overview.taxableBase);
+              const projectedBase = currentBase * factor;
+              const projectedIncome = overview.totalIncome * factor;
+              const projTax = calcPfaTax(projectedBase);
+              const monthlyRate = currentBase / monthsElapsed;
+
+              const milestones = [
+                { label: "Plătești CASS (sănătate)", threshold: 6 * SMIN_2026 },
+                { label: "Plătești CAS (pensie)", threshold: 12 * SMIN_2026 },
+                { label: "CAS + CASS la plafon maxim", threshold: 24 * SMIN_2026 },
+              ].map((m) => {
+                const reached = currentBase >= m.threshold;
+                const remaining = Math.max(0, m.threshold - currentBase);
+                const monthsAway = monthlyRate > 0 ? remaining / monthlyRate : Infinity;
+                const etaIndex = Math.ceil(monthsElapsed + monthsAway);
+                const eta = !reached && etaIndex >= 1 && etaIndex <= 12 ? MONTHS[etaIndex] : null;
+                return { ...m, reached, remaining, eta };
+              });
+
+              return (
+                <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium text-white">Proiecție la 31 decembrie {state.selectedYear}</p>
+                    <InfoBadge title="Proiecție" description="Estimare pe baza ritmului mediu de până acum: venit net de la începutul anului ÷ lunile scurse × 12. Se actualizează pe măsură ce adaugi facturi și cheltuieli." />
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <p className="text-xs text-neutral-500">Venit net acum</p>
+                      <p className="text-white font-medium text-sm mt-0.5">{fmtCurrency(currentBase, "RON")}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-neutral-500">Venit net estimat 31 dec</p>
+                      <p className="text-white font-medium text-sm mt-0.5">{fmtCurrency(projectedBase, "RON")}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-neutral-500">Taxe estimate an întreg</p>
+                      <p className="text-amber-300 font-semibold text-sm mt-0.5">{fmtCurrency(projTax.total, "RON")}</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 border-t border-neutral-800 pt-3">
+                    {milestones.map((m) => (
+                      <div key={m.label}>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm text-neutral-300">
+                            <span className={m.reached ? "text-emerald-400" : "text-neutral-600"}>{m.reached ? "✓ " : "○ "}</span>
+                            {m.label}
+                          </span>
+                          <span className="text-xs text-neutral-500 shrink-0">prag {fmtCurrency(m.threshold, "RON")}</span>
+                        </div>
+                        <p className="text-xs mt-0.5 ml-4">
+                          {m.reached
+                            ? <span className="text-emerald-400/80">Deja atins</span>
+                            : m.eta
+                              ? <span className="text-amber-300/90">Estimativ în {m.eta} — îți mai trebuie {fmtCurrency(m.remaining, "RON")} venit net</span>
+                              : <span className="text-neutral-500">Improbabil anul acesta — lipsesc {fmtCurrency(m.remaining, "RON")}</span>}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <p className="text-xs text-neutral-600">
+                    Presupune venit uniform pe tot anul. Dacă ai sezon (nunți vara), ajustează mental. Estimat venit din facturi: {fmtCurrency(projectedIncome, "RON")}.
+                  </p>
+                </div>
               );
             })()}
 
