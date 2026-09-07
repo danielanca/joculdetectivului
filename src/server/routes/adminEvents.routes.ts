@@ -24,6 +24,14 @@ const backupProofUpload = multer({
   limits: { fileSize: 20 * 1024 * 1024 },
 });
 
+// Photobooth gallery photos — larger cap, many files per request.
+const photoboothUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 60 * 1024 * 1024 },
+});
+
+const PHOTOBOOTH_IMAGE_EXT = /\.(jpg|jpeg|png|webp)$/i;
+
 type LeadEventTypeGuess = "Nuntă" | "Botez" | "Cununie civilă" | "Logodnă" | "Aniversare" | "Altele" | null;
 
 function sanitizePhone(value: unknown): string | null {
@@ -541,6 +549,93 @@ router.post("/events/:id/create-album", async (req: Request, res: Response) => {
     res.status(500).json({ error: String(error) });
   }
 });
+
+// POST /api/admin/events/:id/photobooth-folder — ensure {albumSlug}/photobooth/ exists in Bunny
+router.post("/events/:id/photobooth-folder", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const db = firestore();
+    const doc = await db.collection("adminEvents").doc(id).get();
+    if (!doc.exists) return res.status(404).json({ error: "Evenimentul nu a fost găsit." });
+
+    const slug = doc.data()?.albumSlug as string | undefined;
+    if (!slug) return res.status(400).json({ error: "Evenimentul nu are un album slug setat." });
+
+    const placeholderUrl = buildBunnyStorageUrl(slug, "photobooth", ".keep");
+    const uploadRes = await nodeFetch(placeholderUrl, {
+      method: "PUT",
+      headers: { [BUNNY_ACCESS_KEY_HEADER]: getBunnyStorageKey(), "Content-Type": "application/octet-stream" },
+      body: "",
+      agent: bunnyAgent,
+    });
+    if (!uploadRes.ok) {
+      return res.status(500).json({ error: `Bunny folder create failed: ${uploadRes.status}` });
+    }
+
+    res.json({ ok: true, slug, galleryUrl: `/fotocabina/${slug}/galerie` });
+  } catch (error) {
+    console.error("[adminEvents] photobooth-folder failed:", error);
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+// POST /api/admin/events/:id/photobooth-upload — upload photobooth photos to {albumSlug}/photobooth/
+router.post(
+  "/events/:id/photobooth-upload",
+  requireFirebaseAuth,
+  requireSupremeAdmin,
+  photoboothUpload.array("files", 40),
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const files = (req.files as Express.Multer.File[] | undefined) ?? [];
+      if (files.length === 0) return res.status(400).json({ error: "Niciun fișier primit." });
+
+      const db = firestore();
+      const doc = await db.collection("adminEvents").doc(id).get();
+      if (!doc.exists) return res.status(404).json({ error: "Evenimentul nu a fost găsit." });
+
+      const slug = doc.data()?.albumSlug as string | undefined;
+      if (!slug) return res.status(400).json({ error: "Evenimentul nu are un album slug setat." });
+
+      const storageKey = getBunnyStorageKey();
+      const failed: string[] = [];
+      let uploaded = 0;
+
+      await Promise.all(
+        files.map(async (file, idx) => {
+          const isImage =
+            file.mimetype.toLowerCase().startsWith("image/") || PHOTOBOOTH_IMAGE_EXT.test(file.originalname);
+          if (!isImage) {
+            failed.push(file.originalname);
+            return;
+          }
+
+          const safeName = `${Date.now()}-${idx}-${file.originalname.replace(/[^a-zA-Z0-9.]/g, "_")}`;
+          const uploadUrl = buildBunnyStorageUrl(slug, "photobooth", safeName);
+          try {
+            const uploadRes = await nodeFetch(uploadUrl, {
+              method: "PUT",
+              headers: { [BUNNY_ACCESS_KEY_HEADER]: storageKey, "Content-Type": "application/octet-stream" },
+              body: file.buffer,
+              agent: bunnyAgent,
+            });
+            if (uploadRes.ok) uploaded++;
+            else failed.push(file.originalname);
+          } catch {
+            failed.push(file.originalname);
+          }
+        }),
+      );
+
+      if (uploaded > 0) invalidateAlbumCache(slug);
+      res.json({ uploaded, failed, total: files.length });
+    } catch (error) {
+      console.error("[adminEvents] photobooth-upload failed:", error);
+      res.status(500).json({ error: String(error) });
+    }
+  },
+);
 
 // Checks if a Bunny folder already exists for the given slug and auto-links it to the event
 router.post("/events/:id/detect-album", async (req: Request, res: Response) => {

@@ -137,6 +137,7 @@ async function loadRouter() {
   vi.doMock("multer", () => {
     const m = vi.fn(() => ({
       single: vi.fn(() => (_req: any, _res: any, next: () => void) => next()),
+      array: vi.fn(() => (_req: any, _res: any, next: () => void) => next()),
     })) as any;
     m.memoryStorage = vi.fn(() => ({}));
     return { default: m };
@@ -194,6 +195,8 @@ async function loadRouter() {
     postBackupSubmit: getHandler("post", "/events/:id/post-event-backup/submit"),
     postExtractFromImage: getHandler("post", "/leads/extract-from-image"),
     postCreateAlbum: getHandler("post", "/events/:id/create-album"),
+    postPhotoboothFolder: getHandler("post", "/events/:id/photobooth-folder"),
+    postPhotoboothUpload: getHandler("post", "/events/:id/photobooth-upload"),
     postDetectAlbum: getHandler("post", "/events/:id/detect-album"),
     patchAlbum: getHandler("patch", "/events/:id/album"),
     getAlbumHealthJobs: getHandler("get", "/album-health/jobs"),
@@ -812,6 +815,74 @@ describe("adminEvents routes", () => {
       const res = createMockResponse();
       await postCreateAlbum({ params: { id: "ev-1" }, body: { slug: "nunta-test-2026" } }, res);
       expect(res.status).toHaveBeenCalledWith(500);
+    });
+  });
+
+  // ───────────────── POST /events/:id/photobooth-folder ─────────────────
+  describe("POST /events/:id/photobooth-folder", () => {
+    test("returns 400 when event has no albumSlug", async () => {
+      const { postPhotoboothFolder, docGetMock } = await loadRouter();
+      docGetMock.mockResolvedValueOnce(makeEventDoc({ albumSlug: undefined }));
+      const res = createMockResponse();
+      await postPhotoboothFolder({ params: { id: "ev-1" } }, res);
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
+
+    test("creates folder and returns galleryUrl", async () => {
+      const { postPhotoboothFolder, nodeFetchMock } = await loadRouter();
+      nodeFetchMock.mockResolvedValueOnce({ ok: true });
+      const res = createMockResponse();
+      await postPhotoboothFolder({ params: { id: "ev-1" } }, res);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ ok: true, galleryUrl: "/fotocabina/nunta-ion-maria/galerie" }),
+      );
+    });
+
+    test("returns 404 when event not found", async () => {
+      const { postPhotoboothFolder, docGetMock } = await loadRouter();
+      docGetMock.mockResolvedValueOnce({ exists: false });
+      const res = createMockResponse();
+      await postPhotoboothFolder({ params: { id: "missing" } }, res);
+      expect(res.status).toHaveBeenCalledWith(404);
+    });
+  });
+
+  // ───────────────── POST /events/:id/photobooth-upload ─────────────────
+  describe("POST /events/:id/photobooth-upload", () => {
+    test("returns 400 when no files", async () => {
+      const { postPhotoboothUpload } = await loadRouter();
+      const res = createMockResponse();
+      await postPhotoboothUpload({ params: { id: "ev-1" }, files: [] }, res);
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
+
+    test("returns 400 when event has no albumSlug", async () => {
+      const { postPhotoboothUpload, docGetMock } = await loadRouter();
+      docGetMock.mockResolvedValueOnce(makeEventDoc({ albumSlug: undefined }));
+      const res = createMockResponse();
+      await postPhotoboothUpload({
+        params: { id: "ev-1" },
+        files: [{ originalname: "a.jpg", mimetype: "image/jpeg", buffer: Buffer.from("x") }],
+      }, res);
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
+
+    test("uploads images and reports non-images as failed", async () => {
+      const { postPhotoboothUpload, nodeFetchMock } = await loadRouter();
+      nodeFetchMock.mockResolvedValue({ ok: true });
+      const res = createMockResponse();
+      await postPhotoboothUpload({
+        params: { id: "ev-1" },
+        files: [
+          { originalname: "a.jpg", mimetype: "image/jpeg", buffer: Buffer.from("x") },
+          { originalname: "b.png", mimetype: "image/png", buffer: Buffer.from("x") },
+          { originalname: "c.txt", mimetype: "text/plain", buffer: Buffer.from("x") },
+        ],
+      }, res);
+      const data = (res.json as any).mock.calls[0][0];
+      expect(data.uploaded).toBe(2);
+      expect(data.failed).toEqual(["c.txt"]);
+      expect(data.total).toBe(3);
     });
   });
 

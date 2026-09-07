@@ -1,19 +1,26 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import FotocabinaServicesPromo from "./FotocabinaServicesPromo";
 
 type PageState = "loading" | "not-found" | "empty" | "ready" | "error";
 
 const IMAGE_EXTENSIONS = /\.(jpg|jpeg|png|webp)$/i;
 
 const FotocabinaGalleryPage: React.FC = () => {
-  const { slug } = useParams<{ slug: string }>();
+  const { slug, shareId } = useParams<{ slug?: string; shareId?: string }>();
+  const isShared = Boolean(shareId);
   const [pageState, setPageState] = useState<PageState>("loading");
   const [images, setImages] = useState<string[]>([]);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!slug) { setPageState("not-found"); return; }
-    fetch(`/api/photobooth/by-slug/${encodeURIComponent(slug)}/files`)
+    const filesUrl = shareId
+      ? `/api/photobooth/share/${encodeURIComponent(shareId)}/files`
+      : slug
+        ? `/api/photobooth/by-slug/${encodeURIComponent(slug)}/files`
+        : null;
+    if (!filesUrl) { setPageState("not-found"); return; }
+    fetch(filesUrl)
       .then((response) => {
         if (response.status === 404) { setPageState("not-found"); return null; }
         if (!response.ok) throw new Error("server error");
@@ -30,7 +37,7 @@ const FotocabinaGalleryPage: React.FC = () => {
         }
       })
       .catch(() => setPageState("error"));
-  }, [slug]);
+  }, [slug, shareId]);
 
   const download = (url: string) => {
     const fileName = url.split("/").pop() ?? "foto.jpg";
@@ -79,7 +86,7 @@ const FotocabinaGalleryPage: React.FC = () => {
           <p className="text-white/40 text-sm leading-relaxed">
             Linkul poate fi incorect sau galeria nu a fost creată încă.
           </p>
-          <p className="text-white/20 text-xs mt-6 font-mono">/fotocabina/{slug}/galerie</p>
+          <p className="text-white/20 text-xs mt-6 font-mono">{isShared ? `/galerie-fotocabina/${shareId}` : `/fotocabina/${slug}/galerie`}</p>
         </div>
       </div>
     );
@@ -87,14 +94,17 @@ const FotocabinaGalleryPage: React.FC = () => {
 
   if (pageState === "empty") {
     return (
-      <div className="min-h-screen bg-[#080808] flex items-center justify-center px-4">
-        <div className="text-center max-w-xs">
-          <p className="text-5xl mb-5">⏳</p>
-          <h1 className="text-white text-lg font-semibold mb-2">Pozele nu sunt disponibile încă</h1>
-          <p className="text-white/40 text-sm leading-relaxed">
-            Revino mai târziu — pozele vor apărea automat de îndată ce sunt uploadate.
-          </p>
+      <div className="min-h-screen bg-[#080808]">
+        <div className="px-4 pt-16 pb-6">
+          <div className="text-center max-w-xs mx-auto">
+            <p className="text-5xl mb-5">⏳</p>
+            <h1 className="text-white text-lg font-semibold mb-2">Pozele nu sunt disponibile încă</h1>
+            <p className="text-white/40 text-sm leading-relaxed">
+              Revino mai târziu — pozele vor apărea automat de îndată ce sunt uploadate.
+            </p>
+          </div>
         </div>
+        <FotocabinaServicesPromo />
       </div>
     );
   }
@@ -194,8 +204,11 @@ const FotocabinaGalleryPage: React.FC = () => {
             ))}
           </div>
 
-          <p className="text-center text-white/15 text-xs mt-10">AncaVisuals · ancavisuals.ro</p>
         </div>
+
+        <FotocabinaServicesPromo shareSlug={!isShared ? slug : undefined} />
+
+        <p className="text-center text-white/15 text-xs mt-10">AncaVisuals · ancavisuals.ro</p>
       </div>
     </>
   );

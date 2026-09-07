@@ -350,6 +350,11 @@ export default function MediaAlbumPage() {
     galleryUrl?: string | null;
   } | null>(null);
 
+  const [photobooth, setPhotobooth] = useState<{
+    photos: string[];
+    galleryUrl?: string | null;
+  } | null>(null);
+
   // ── DERIVED STATE ──────────────────────────────────────────────────────────
 
   const { mode, browsePage, printPage, downloadPage, selectedPrint, selectedDownload, shareUrl, shareError } = gallery;
@@ -490,6 +495,14 @@ export default function MediaAlbumPage() {
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => setQrMoments(data))
       .catch(() => setQrMoments(null));
+  }, [slug]);
+
+  useEffect(() => {
+    if (!slug) return;
+    fetch(`/api/album/${slug}/photobooth`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => setPhotobooth(data))
+      .catch(() => setPhotobooth(null));
   }, [slug]);
 
   useEffect(() => {
@@ -2163,6 +2176,49 @@ export default function MediaAlbumPage() {
                   </div>
                 </>
               )}
+            </>
+          )}
+
+          {photobooth && photobooth.photos.length > 0 && (
+            <>
+              <h2 className={styles.sectionTitle}>
+                Poze fotocabină ({photobooth.photos.length})
+              </h2>
+
+              {photobooth.galleryUrl && (
+                <div style={{ margin: "0 0 16px", padding: "14px 16px", background: "#111111", border: "1px solid #2f2f2f", borderRadius: "12px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
+                  <div>
+                    <p style={{ color: "#f5f5f5", fontWeight: 600, fontSize: "13px", margin: 0 }}>Galeria de la fotocabină</p>
+                    <p style={{ color: "#8b8b8b", fontSize: "12px", margin: "4px 0 0" }}>
+                      Toate pozele făcute la fotocabină în timpul evenimentului.
+                    </p>
+                  </div>
+                  <a
+                    href={photobooth.galleryUrl}
+                    className={styles.downloadBtn}
+                    style={{ whiteSpace: "nowrap" }}
+                  >
+                    DESCHIDE GALERIA FOTOCABINĂ
+                  </a>
+                </div>
+              )}
+
+              <div className={styles.printPhotosGrid} data-columns={mobileColumns}>
+                {photobooth.photos.map((src) => (
+                  <div key={src} className={styles.printPhotoWrapper}>
+                    <img src={src} alt="Poză fotocabină" className={styles.printPhotoImg} loading="lazy" />
+                    <a
+                      href={src}
+                      download
+                      className={styles.pickBtnSecondary}
+                      style={{ position: "absolute", bottom: 6, right: 6, fontSize: "12px", padding: "4px 10px" }}
+                      aria-label="Descarcă poza"
+                    >
+                      ↓
+                    </a>
+                  </div>
+                ))}
+              </div>
             </>
           )}
 

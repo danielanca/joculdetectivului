@@ -5,6 +5,7 @@ import Redacted from "./Redacted";
 import EventStatusBadge from "./EventStatusBadge";
 import FileDropZone from "./FileDropZone";
 import MultiFileDropZone from "./MultiFileDropZone";
+import PhotoboothUploader from "./PhotoboothUploader";
 import ConfirmModal from "./ConfirmModal";
 import { slugify } from "../../../utils/slugify";
 import { useBodyScrollLock } from "../../../hooks/useBodyScrollLock";
@@ -88,6 +89,9 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
   const [photoboothNotifying, setPhotoboothNotifying] = useState(false);
   const [photoboothNotifyResult, setPhotoboothNotifyResult] = useState<string | null>(null);
   const [photoboothQrDownloading, setPhotoboothQrDownloading] = useState(false);
+  const [photoboothGalleryCreating, setPhotoboothGalleryCreating] = useState(false);
+  const [showPhotoboothUploader, setShowPhotoboothUploader] = useState(false);
+  const [photoboothGalleryError, setPhotoboothGalleryError] = useState<string | null>(null);
 
   const eventDate = fallbackDate;
   const effectiveEventDate = event.eventEndDate ? new Date(event.eventEndDate) : eventDate;
@@ -233,6 +237,29 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
       setTimeout(() => setPhotoboothNotifyResult(null), 3000);
     } finally {
       setPhotoboothNotifying(false);
+    }
+  };
+
+  const handleCreatePhotoboothGallery = async (clickEvent: React.MouseEvent) => {
+    clickEvent.stopPropagation();
+    if (showPhotoboothUploader) { setShowPhotoboothUploader(false); return; }
+    setPhotoboothGalleryCreating(true);
+    setPhotoboothGalleryError(null);
+    try {
+      const response = await fetch(`/api/admin/events/${event.id}/photobooth-folder`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${auth.auth.accessToken}` },
+      });
+      const data = (await response.json()) as { ok?: boolean; error?: string };
+      if (!response.ok || !data.ok) {
+        setPhotoboothGalleryError(data.error ?? "Eroare la crearea galeriei.");
+        return;
+      }
+      setShowPhotoboothUploader(true);
+    } catch {
+      setPhotoboothGalleryError("Eroare de rețea.");
+    } finally {
+      setPhotoboothGalleryCreating(false);
     }
   };
 
@@ -1131,6 +1158,44 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                             </div>
                           ))}
                         </div>
+                      )}
+
+                      {/* Photobooth gallery — creare folder Bunny + upload drag & drop */}
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <button
+                          onClick={handleCreatePhotoboothGallery}
+                          disabled={photoboothGalleryCreating}
+                          className="inline-flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 border border-emerald-800 hover:border-emerald-600 rounded-lg px-2.5 py-1 transition-colors disabled:opacity-50"
+                        >
+                          {photoboothGalleryCreating ? (
+                            <svg className="animate-spin" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" strokeOpacity=".25"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
+                          ) : (
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+                            </svg>
+                          )}
+                          {showPhotoboothUploader ? "Ascunde upload" : "Crează Galerie Photobooth"}
+                        </button>
+                        <a
+                          href={`/fotocabina/${albumSlug}/galerie`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-xs text-violet-400 hover:text-violet-300 transition-colors"
+                        >
+                          → Galerie fotocabină
+                        </a>
+                        {photoboothGalleryError && (
+                          <span className="text-xs text-red-400">{photoboothGalleryError}</span>
+                        )}
+                      </div>
+
+                      {showPhotoboothUploader && (
+                        <PhotoboothUploader
+                          eventId={event.id}
+                          accessToken={auth.auth.accessToken}
+                          galleryUrl={`/fotocabina/${albumSlug}/galerie`}
+                        />
                       )}
                     </div>
                   </div>

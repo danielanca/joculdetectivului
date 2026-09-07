@@ -97,6 +97,7 @@ async function loadRouter(options?: {
 
   const multerFn = vi.fn(() => ({
     single: vi.fn(() => (_req: any, _res: any, next: any) => next()),
+    array: vi.fn(() => (_req: any, _res: any, next: any) => next()),
   })) as any;
   multerFn.memoryStorage = vi.fn(() => ({}));
   vi.doMock("multer", () => ({ default: multerFn }));

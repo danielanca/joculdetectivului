@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { Router, type Request, type Response } from "express";
 import { firestore } from "../firestore";
 import { Timestamp } from "firebase-admin/firestore";
@@ -15,6 +16,7 @@ import {
 const router = Router();
 
 const PHOTOBOOTH_COLLECTION = "photobooth_guests";
+const PHOTOBOOTH_SHARES_COLLECTION = "photobooth_shares";
 const ADMIN_EVENTS_COLLECTION = "adminEvents";
 const APP_BASE_URL = process.env.APP_BASE_URL ?? "https://ancavisuals.ro";
 
@@ -284,6 +286,57 @@ router.get("/by-slug/:slug/files", async (req: Request, res: Response) => {
     res.json({ urls, count: urls.length });
   } catch (error) {
     console.error("[photobooth] files listing failed:", error);
+    res.status(500).json({ error: "Eroare server." });
+  }
+});
+
+// POST /api/photobooth/by-slug/:slug/share — public, creates (or reuses) a hashed share link
+// that lets the couple share only the photobooth photos without exposing the event slug.
+router.post("/by-slug/:slug/share", async (req: Request, res: Response) => {
+  try {
+    const slug = req.params.slug?.trim();
+    if (!slug) { res.status(400).json({ error: "Slug invalid." }); return; }
+
+    const db = firestore();
+    const eventSnap = await db.collection(ADMIN_EVENTS_COLLECTION).where("albumSlug", "==", slug).limit(1).get();
+    if (eventSnap.empty) { res.status(404).json({ error: "Galeria nu a fost găsită." }); return; }
+
+    const existing = await db.collection(PHOTOBOOTH_SHARES_COLLECTION).where("slug", "==", slug).limit(1).get();
+    if (!existing.empty) {
+      const shareId = existing.docs[0].id;
+      res.json({ shareId, path: `/galerie-fotocabina/${shareId}` });
+      return;
+    }
+
+    const shareId = crypto.randomBytes(9).toString("hex");
+    await db.collection(PHOTOBOOTH_SHARES_COLLECTION).doc(shareId).set({
+      slug,
+      createdAt: Timestamp.now(),
+    });
+
+    res.json({ shareId, path: `/galerie-fotocabina/${shareId}` });
+  } catch (error) {
+    console.error("[photobooth] share create failed:", error);
+    res.status(500).json({ error: "Eroare server." });
+  }
+});
+
+// GET /api/photobooth/share/:shareId/files — public, resolves the hashed share id → photobooth images
+router.get("/share/:shareId/files", async (req: Request, res: Response) => {
+  try {
+    const shareId = req.params.shareId?.trim();
+    if (!shareId) { res.status(400).json({ error: "Link invalid." }); return; }
+
+    const doc = await firestore().collection(PHOTOBOOTH_SHARES_COLLECTION).doc(shareId).get();
+    if (!doc.exists) { res.status(404).json({ error: "Linkul nu a fost găsit." }); return; }
+
+    const slug = doc.data()?.slug as string | undefined;
+    if (!slug) { res.status(404).json({ error: "Linkul nu a fost găsit." }); return; }
+
+    const urls = await listPhotoboothFiles(slug);
+    res.json({ urls, count: urls.length });
+  } catch (error) {
+    console.error("[photobooth] share files listing failed:", error);
     res.status(500).json({ error: "Eroare server." });
   }
 });

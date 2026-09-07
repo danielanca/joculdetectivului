@@ -190,6 +190,36 @@ router.get("/:slug/qr-moments", async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/album/:slug/photobooth — photos uploaded to {slug}/photobooth/ (from the photo booth)
+router.get("/:slug/photobooth", async (req: Request, res: Response) => {
+  try {
+    const { slug } = req.params;
+    const { buildBunnyDirectoryUrl, getBunnyStorageKey, BUNNY_ACCESS_KEY_HEADER, BUNNY_IMAGE_FILE_PATTERN } = await import("../constants/bunny");
+    const { signBunnyUrl } = await import("../utils/signBunnyUrl");
+
+    const url = buildBunnyDirectoryUrl(slug, "photobooth");
+    const response = await fetch(url, { headers: { [BUNNY_ACCESS_KEY_HEADER]: getBunnyStorageKey() } });
+
+    if (!response.ok) {
+      res.json({ photos: [], galleryUrl: null });
+      return;
+    }
+
+    const entries = await response.json() as { ObjectName: string; IsDirectory?: boolean }[];
+    const photos = entries
+      .filter((e) => !e.IsDirectory && BUNNY_IMAGE_FILE_PATTERN.test(e.ObjectName))
+      .map((e) => signBunnyUrl(`/${slug}/photobooth/${e.ObjectName}`));
+
+    res.json({
+      photos,
+      galleryUrl: photos.length > 0 ? `/fotocabina/${slug}/galerie` : null,
+    });
+  } catch (error) {
+    console.error("[album] photobooth failed:", error);
+    res.status(500).json({ error: "Failed to load photobooth photos" });
+  }
+});
+
 router.post("/:slug/consent", express.json(), async (req: Request, res: Response) => {
   try {
     // Notificarea pe email a fost dezactivată la cerere; doar confirmăm succesul către client

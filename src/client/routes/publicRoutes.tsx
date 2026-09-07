@@ -228,6 +228,11 @@ const publicRoutes: publicRoutesType[] = [
     layout: null,
     component: FotocabinaGalleryPage,
   },
+  {
+    path: "/galerie-fotocabina/:shareId",
+    layout: null,
+    component: FotocabinaGalleryPage,
+  },
 
   /** ============================================================
    *  ADMIN — rute semi-publice (autentificate în App.tsx via RequireAuth)
