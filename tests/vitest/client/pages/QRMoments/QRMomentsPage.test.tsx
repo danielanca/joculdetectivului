@@ -224,7 +224,11 @@ describe("QRMomentsPage", () => {
           this.responseText = JSON.stringify({ uploadedCount: 1, uploadIds: ["upload-1"] });
           queueMicrotask(() => this.onload?.());
         } else {
-          queueMicrotask(() => this.onerror?.());
+          // A permanent 4xx (e.g. file too large) — not a transient network blip,
+          // so the client fails it immediately instead of auto-retrying.
+          this.status = 400;
+          this.responseText = JSON.stringify({ error: "file too large" });
+          queueMicrotask(() => this.onload?.());
         }
       }
     }

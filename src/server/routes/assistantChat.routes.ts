@@ -66,7 +66,14 @@ async function getBookedDates(): Promise<string[]> {
 }
 
 const router = Router();
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+let anthropicClient: Anthropic | null = null;
+const getAnthropic = (): Anthropic => {
+  if (!anthropicClient) {
+    anthropicClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  }
+  return anthropicClient;
+};
 
 const CHAT_ASSISTANT_SYSTEM = `Ești asistentul virtual Anca Visuals. Răspunzi în română, natural, prietenos și concis (maximum 3 paragrafe).
 
@@ -202,7 +209,7 @@ router.post("/message", async (req, res) => {
 
   if (text && process.env.ANTHROPIC_API_KEY) {
     try {
-      const response = await anthropic.messages.create({
+      const response = await getAnthropic().messages.create({
         model: "claude-haiku-4-5-20251001",
         max_tokens: 300,
         system: CHAT_ASSISTANT_SYSTEM,
