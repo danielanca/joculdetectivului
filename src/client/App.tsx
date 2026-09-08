@@ -65,13 +65,14 @@ import ClientDebugBadge from "./features/admin/components/ClientDebugBadge";
 import { usePageTracking } from "./hooks/usePageTracking";
 import { useClientErrorReporting } from "./hooks/useClientErrorReporting";
 import { useVisitorNotification } from "./hooks/useVisitorNotification";
+import { useLiveVisitor } from "./hooks/useLiveVisitor";
 import { captureLandingMeta } from "./utils/sessionAttribution";
 import publicRoutes from "./routes/publicRoutes";
 import { adminRoutes } from "./routes/adminRoutes";
 import { weddingHubRoutes } from "./routes/weddingHubRoutes";
 
 const AncaChat = loadable(() => import("./features/chat/components/AncaChat"), { fallback: <></> });
-const AlbumNotFound = loadable(() => import("./pages/MediaDownload/AlbumNotFound"), { fallback: <AncaLoader /> });
+const NotFoundPage = loadable(() => import("./pages/NotFoundPage"), { fallback: <AncaLoader /> });
 
 const HIDE_CHAT_PREFIXES = ["/admin", "/login", "/contract", "/revin", "/colaborator", "/qr-moments", "/wedding-hub", "/invite", "/oferta", "/backup"];
 
@@ -85,6 +86,7 @@ export const App = () => {
   usePageTracking();
   useClientErrorReporting(isErrorReportingEnabled);
   useVisitorNotification();
+  useLiveVisitor();
 
   useEffect(() => {
     captureLandingMeta();
@@ -152,7 +154,7 @@ export const App = () => {
               ))}
               {adminRoutes}
               {weddingHubRoutes}
-              <Route path="*" element={<AlbumNotFound />} />
+              <Route path="*" element={<NotFoundPage />} />
             </Routes>
           </Suspense>
           </ChunkErrorBoundary>

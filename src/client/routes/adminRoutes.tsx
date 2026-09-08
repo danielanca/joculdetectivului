@@ -25,6 +25,7 @@ const MementosPage = loadable(() => import("../features/admin/components/Memento
 const MediaActivityPage = loadable(() => import("../features/admin/components/MediaActivityPage"), opts);
 const QRMomentsAdminPage = loadable(() => import("../features/admin/components/QRMomentsAdminPage"), opts);
 const AnalyticsPage = loadable(() => import("../features/admin/components/AnalyticsPage"), opts);
+const LiveVisitorsPage = loadable(() => import("../features/admin/components/LiveVisitorsPage"), opts);
 const ImageOptimizerPage = loadable(() => import("../features/admin/components/ImageOptimizerPage"), opts);
 const GoalDetailPage = loadable(() => import("../features/admin/components/GoalDetailPage"), opts);
 const BankDetailsPage = loadable(() => import("../features/admin/components/BankDetailsPage"), opts);
@@ -75,6 +76,7 @@ export const adminRoutes = [
       <Route path="/admin/media-activity" element={<MediaActivityPage />} />
       <Route path="/admin/qr-moments" element={<QRMomentsAdminPage />} />
       <Route path="/admin/analytics" element={<AnalyticsPage />} />
+      <Route path="/admin/live" element={<LiveVisitorsPage />} />
       <Route path="/admin/image-optimizer" element={<ImageOptimizerPage />} />
       <Route path="/admin/bank-details" element={<BankDetailsPage />} />
       <Route path="/admin/goals/:type" element={<GoalDetailPage />} />

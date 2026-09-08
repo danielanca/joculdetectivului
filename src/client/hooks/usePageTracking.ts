@@ -1,10 +1,10 @@
 import { useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
-import { getCookie, setCookie, isBrowser } from "../utils/functions";
+import { getCookie, isBrowser } from "../utils/functions";
+import { getSessionId, getVisitorId, looksLikeBot } from "../utils/visitorSession";
 
 const SKIP_PREFIXES = ["/admin", "/login", "/revin"];
 const ADMIN_COOKIE = "av_admin";
-const VISITOR_COOKIE = "av_vid";
 
 const HEARTBEAT_MS = 5_000;   // check every 5s
 const IDLE_TIMEOUT_MS = 30_000; // no interaction for 30s = idle
@@ -42,36 +42,6 @@ function getAttribution(): { source?: string; medium?: string; campaign?: string
 }
 
 const ACTIVITY_EVENTS = ["mousemove", "mousedown", "keydown", "scroll", "touchstart", "click"] as const;
-
-function looksLikeBot(): boolean {
-  try {
-    sessionStorage.setItem("__av_test", "1");
-    sessionStorage.removeItem("__av_test");
-    if (window.screen.width === 0 || window.screen.height === 0) return true;
-    if (navigator.webdriver) return true;
-    return false;
-  } catch {
-    return true;
-  }
-}
-
-function getSessionId(): string {
-  const key = "av_sid";
-  let id = sessionStorage.getItem(key);
-  if (!id) {
-    id = Math.random().toString(36).slice(2) + Date.now().toString(36);
-    sessionStorage.setItem(key, id);
-  }
-  return id;
-}
-
-function getVisitorId(): { visitorId: string; isNew: boolean } {
-  const existing = getCookie(VISITOR_COOKIE);
-  if (existing) return { visitorId: existing, isNew: false };
-  const visitorId = Math.random().toString(36).slice(2) + Date.now().toString(36);
-  setCookie(VISITOR_COOKIE, visitorId, 365);
-  return { visitorId, isNew: true };
-}
 
 function sendEngagementBeacon(id: string, timeSpent: number, scrollDepth: number) {
   const payload = JSON.stringify({ id, timeSpent, scrollDepth });

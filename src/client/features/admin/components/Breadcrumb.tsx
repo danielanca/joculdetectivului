@@ -25,6 +25,7 @@ const LABELS: Record<string, string> = {
   landing: "Landing Page",
   goals: "Obiective",
   analytics: "Analytics",
+  live: "Vizitatori live",
   "wedding-hub": "Wedding Hub",
   "template-oferte": "Template Oferte",
   oferte: "Oferte",

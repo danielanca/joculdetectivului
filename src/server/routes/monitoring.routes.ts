@@ -49,6 +49,60 @@ function isSlowLoadError(message: string): boolean {
   return message.startsWith("[SLOW LOAD]");
 }
 
+// Someone landing on a broken link (usually a wrong URL in an ad or printed
+// material) triggers one email per unique path per window — the same bad ad
+// gets clicked many times, but the admin only needs to hear about it once.
+const NOT_FOUND_EMAIL_COOLDOWN_MS = 6 * 60 * 60_000;
+const notFoundEmailLastSent = new Map<string, number>();
+
+function shouldSendNotFoundEmail(path: string): boolean {
+  const now = Date.now();
+  const last = notFoundEmailLastSent.get(path);
+  if (last && now - last < NOT_FOUND_EMAIL_COOLDOWN_MS) return false;
+  notFoundEmailLastSent.set(path, now);
+  for (const [storedKey, timestamp] of notFoundEmailLastSent) {
+    if (now - timestamp > NOT_FOUND_EMAIL_COOLDOWN_MS) notFoundEmailLastSent.delete(storedKey);
+  }
+  return true;
+}
+
+// Automated scanners hit these constantly — never an ad mistake, so skip them.
+const SCANNER_PATH_PATTERN =
+  /(\.php|\.aspx?|\.env|\/wp-|xmlrpc|\/\.git|\/vendor\/|\/cgi-bin|phpmyadmin|\/owa\/|wallet\.dat|\/\.aws|\/\.ssh)/i;
+
+async function sendNotFoundEmail(
+  path: string,
+  referrer: string,
+  userAgent: string,
+  ip?: string,
+  geo?: { city?: string; region?: string; country?: string },
+) {
+  const safe = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const location = geo ? [geo.city, geo.region, geo.country].filter(Boolean).join(", ") : "";
+
+  await sendEmail({
+    to: adminUser.email,
+    subject: `🔗 Link greșit (404) pe ancavisuals.ro — ${path}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;background:#0a0a0a;color:#e5e5e5;border-radius:12px;">
+        <h2 style="color:#f59e0b;margin:0 0 8px;">🔗 Cineva a ajuns pe un link inexistent</h2>
+        <p style="color:#a3a3a3;margin:0 0 16px;font-size:13px;">
+          Dacă ai o reclamă activă sau un material tipărit care duce aici, corectează linkul.
+        </p>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <tr><td style="padding:6px 0;color:#737373;width:110px;">Adresă cerută</td><td style="color:#f5f5f5;font-weight:600;word-break:break-all;">${safe(path)}</td></tr>
+          <tr><td style="padding:6px 0;color:#737373;">A venit de pe</td><td style="color:#facc15;word-break:break-all;">${safe(referrer || "— (link tastat direct sau necunoscut)")}</td></tr>
+          <tr><td style="padding:6px 0;color:#737373;">Locație IP</td><td style="color:#f5f5f5;">${safe(location || "—")}</td></tr>
+          <tr><td style="padding:6px 0;color:#737373;">IP</td><td style="color:#999;font-size:11px;">${safe(ip || "—")}</td></tr>
+          <tr><td style="padding:6px 0;color:#737373;">Device</td><td style="color:#a3a3a3;font-size:11px;word-break:break-all;">${safe((userAgent || "—").slice(0, 160))}</td></tr>
+          <tr><td style="padding:6px 0;color:#737373;">Ora</td><td style="color:#f5f5f5;">${new Date().toLocaleString("ro-RO", { timeZone: "Europe/Bucharest" })}</td></tr>
+        </table>
+        <p style="color:#444;font-size:11px;margin:20px 0 0;">Trimis automat de AncaVisuals monitoring · max. 1 email / 6h pentru aceeași adresă</p>
+      </div>
+    `,
+  });
+}
+
 async function sendSlowLoadEmail(message: string, page: string, ip?: string) {
   const safe = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   await sendEmail({
@@ -126,6 +180,50 @@ router.post("/client-error", async (req: Request, res: Response) => {
     if (isSlowLoadError(message)) {
       sendSlowLoadEmail(message, page, ip || undefined).catch(() => {});
     }
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ error: "failed" });
+  }
+});
+
+// Public — trimis din browser când un vizitator ajunge pe catch-all route (404)
+router.post("/not-found", async (req: Request, res: Response) => {
+  try {
+    const { path = "", referrer = "", userAgent = "" } = req.body as {
+      path?: string;
+      referrer?: string;
+      userAgent?: string;
+    };
+
+    if (!path || typeof path !== "string") {
+      res.status(400).json({ error: "invalid_payload" });
+      return;
+    }
+
+    const cleanPath = path.slice(0, 300);
+    if (SCANNER_PATH_PATTERN.test(cleanPath)) {
+      res.json({ ok: true, ignored: true });
+      return;
+    }
+
+    const ip = getClientIp(req);
+    const geoData = await fetchIpInfo(ip).catch(() => null);
+    const geo = geoData
+      ? { city: geoData.city, region: geoData.region, country: geoData.country }
+      : undefined;
+
+    captureClientError(
+      `[404] ${cleanPath}`,
+      `Referrer: ${referrer || "-"}\nUA: ${userAgent || "-"}`,
+      cleanPath,
+      ip || undefined,
+      geo,
+    );
+
+    if (shouldSendNotFoundEmail(cleanPath)) {
+      sendNotFoundEmail(cleanPath, String(referrer || ""), String(userAgent || ""), ip || undefined, geo).catch(() => {});
+    }
+
     res.json({ ok: true });
   } catch {
     res.status(500).json({ error: "failed" });

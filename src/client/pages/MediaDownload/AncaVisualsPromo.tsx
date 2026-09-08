@@ -4,7 +4,6 @@ import PhoneNumberReveal from "../../components/PhoneReveal/PhoneNumberReveal";
 
 const PROMO_PHONE = "0745469907";
 const PROMO_PHONE_DISPLAY = "0745 469 907";
-const PROMO_EMAIL = "ancadaniel1994@gmail.com";
 
 const compactPhoneBtnStyle: CSSProperties = {
   flex: "1 1 180px",
@@ -79,12 +78,6 @@ export default function AncaVisualsPromo({ compact = false }: AncaVisualsPromoPr
     return (
       <section style={{ background: "#0a0a0a", padding: "48px 24px 56px" }}>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", maxWidth: "680px", margin: "0 auto" }}>
-          <a
-            href={`mailto:${PROMO_EMAIL}`}
-            style={{ flex: "1 1 180px", display: "flex", alignItems: "center", justifyContent: "center", padding: "14px 16px", background: "transparent", border: "1px solid #c9a96e", color: "#e8c97a", borderRadius: "3px", textDecoration: "none", fontSize: "11px", letterSpacing: "1.5px", textTransform: "uppercase" }}
-          >
-            Contact
-          </a>
           <a
             href={`https://wa.me/40${PROMO_PHONE.slice(1)}`}
             target="_blank"

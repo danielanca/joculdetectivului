@@ -15,6 +15,10 @@ interface TypeEvent {
   utmSource?: string;
   utmMedium?: string;
   utmCampaign?: string;
+  // Google Ads click identifiers — present only on paid clicks (auto-tagging).
+  gclid?: string;
+  wbraid?: string;
+  gbraid?: string;
   // Populated by the phone-reveal widget: first page of the session + any
   // search keyword captured from the landing URL.
   landingPath?: string;
@@ -82,6 +86,26 @@ function detectAiSource(utmSource?: string, referrer?: string): string | null {
   return null;
 }
 
+const PAID_MEDIUMS = new Set(["cpc", "ppc", "paid", "paidsearch", "sem"]);
+
+/**
+ * True when the visit came from a paid Google Ads click. Google auto-tagging
+ * appends gclid (Search/Display), wbraid or gbraid (iOS app / web-to-app);
+ * manually tagged campaigns use utm_source=google + utm_medium=cpc.
+ */
+function detectGoogleAds(data: {
+  gclid?: string;
+  wbraid?: string;
+  gbraid?: string;
+  utmSource?: string;
+  utmMedium?: string;
+}): boolean {
+  if (data.gclid || data.wbraid || data.gbraid) return true;
+  const src = (data.utmSource ?? "").toLowerCase();
+  const med = (data.utmMedium ?? "").toLowerCase();
+  return (src === "google" || src === "adwords") && PAID_MEDIUMS.has(med);
+}
+
 function detectSearchEngine(referrer?: string): string | null {
   const r = (referrer ?? "").toLowerCase();
   if (!r || r === "direct") return null;
@@ -142,7 +166,18 @@ export const triggerEvent = async (request: Request, response: Response) => {
     const uaLower = ua.toLowerCase();
     const device = /mobile|android|iphone|ipad/.test(uaLower) ? "Mobil" : "Desktop";
     const city = ipInfo?.city ?? "";
-    const source = aiSource ?? detectSearchEngine(referrer) ?? (() => {
+    const isGoogleAds = detectGoogleAds({
+      gclid: triggerData.gclid,
+      wbraid: triggerData.wbraid,
+      gbraid: triggerData.gbraid,
+      utmSource: triggerData.utmSource,
+      utmMedium: triggerData.utmMedium,
+    });
+    const searchEngine = detectSearchEngine(referrer);
+    const source = aiSource ?? (() => {
+      if (isGoogleAds) return "Google Ads";
+      if (searchEngine === "Google") return "Google (organic)";
+      if (searchEngine) return searchEngine;
       const r = referrer.toLowerCase();
       if (r.includes("instagram")) return "Instagram";
       if (r.includes("facebook") || r.includes("fb.com")) return "Facebook";
@@ -183,9 +218,11 @@ export const triggerEvent = async (request: Request, response: Response) => {
         device,
         source,
         isNew: String(isNew),
+        isGoogleAds: String(isGoogleAds),
         utmSource: triggerData.utmSource ?? "",
         utmMedium: triggerData.utmMedium ?? "",
         utmCampaign: triggerData.utmCampaign ?? "",
+        gclid: triggerData.gclid ?? triggerData.wbraid ?? triggerData.gbraid ?? "",
         landingPath: triggerData.landingPath ?? "",
         keyword: triggerData.keyword ?? "",
       },
@@ -210,15 +247,22 @@ export const triggerEvent = async (request: Request, response: Response) => {
           timestamp: todayString,
           isNewVisitor: isNew,
           aiSource,
+          isGoogleAds,
           utmMedium: triggerData.utmMedium,
           utmCampaign: triggerData.utmCampaign,
+          gclid: triggerData.gclid ?? triggerData.wbraid ?? triggerData.gbraid,
           landingPath: triggerData.landingPath,
           keyword: triggerData.keyword,
         });
 
+    const subjectPrefix = aiSource
+      ? `🤖 ${aiSource}`
+      : isGoogleAds
+        ? `💰 ${visitorLabel} (Google Ads)`
+        : visitorLabel;
     const emailSubject = isBookingSubmission
       ? triggerData.subject!
-      : `${aiSource ? `🤖 ${aiSource}` : visitorLabel} — ${triggerData.url} — ${todayString} - ${source}`;
+      : `${subjectPrefix} — ${triggerData.url} — ${todayString} - ${source}`;
 
     await sendEmail({ to: adminUser.email, subject: emailSubject, html: emailHtml });
 

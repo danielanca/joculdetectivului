@@ -10,8 +10,10 @@ interface TriggerTemplateData {
   timestamp: string;
   isNewVisitor?: boolean;
   aiSource?: string | null;
+  isGoogleAds?: boolean;
   utmMedium?: string;
   utmCampaign?: string;
+  gclid?: string;
   landingPath?: string;
   keyword?: string;
 }
@@ -82,14 +84,21 @@ export function renderTriggerTemplate(data: TriggerTemplateData): string {
     timestamp,
     isNewVisitor = true,
     aiSource,
+    isGoogleAds = false,
     utmMedium,
     utmCampaign,
+    gclid,
     landingPath,
     keyword,
   } = data;
   const source = aiSource
     ? { label: aiSource, color: "#7c3aed", emoji: "🤖" }
-    : detectSource(referrer);
+    : isGoogleAds
+      ? { label: "Google Ads (plătit)", color: "#188038", emoji: "💰" }
+      : (() => {
+          const s = detectSource(referrer);
+          return s.label === "Google" ? { ...s, label: "Google (organic)" } : s;
+        })();
   const { device, browser, os } = parseDevice(browserVersion);
   const mapsLink = buildMapsLink(ipInfo?.loc);
   const visitorBadge = isNewVisitor
@@ -133,6 +142,7 @@ export function renderTriggerTemplate(data: TriggerTemplateData): string {
                 ${source.emoji}&nbsp;&nbsp;Sursă: ${source.label}
               </p>
               ${aiSource ? `<p style="margin:5px 0 0;font-size:12px;color:#374151;">UTM AI detectat: <strong>${aiSource}</strong>${utmMedium ? ` · medium: ${utmMedium}` : ""}${utmCampaign ? ` · campanie: ${utmCampaign}` : ""}</p>` : ""}
+              ${isGoogleAds ? `<p style="margin:5px 0 0;font-size:12px;color:#374151;">Click plătit din Google Ads${utmCampaign ? ` · campanie: <strong>${utmCampaign}</strong>` : ""}${gclid ? ` · gclid: ${gclid.slice(0, 16)}…` : ""}</p>` : ""}
               ${referrer && referrer !== "direct"
                 ? `<p style="margin:4px 0 0;font-size:11px;color:#9ca3af;word-break:break-all;">${referrer}</p>`
                 : ""}

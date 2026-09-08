@@ -146,6 +146,26 @@ describe("renderTriggerTemplate", () => {
       const html = renderTriggerTemplate({ ...base, referrer: "https://example-unknown.com" });
       expect(html).toContain("https://example-unknown.com");
     });
+
+    test("labels a Google referrer as organic when it is not a paid click", () => {
+      const html = renderTriggerTemplate({ ...base, referrer: "https://www.google.com/" });
+      expect(html).toContain("Google (organic)");
+      expect(html).not.toContain("Google Ads");
+    });
+
+    test("labels the visit as Google Ads when isGoogleAds is set", () => {
+      const html = renderTriggerTemplate({
+        ...base,
+        referrer: "https://www.google.com/",
+        isGoogleAds: true,
+        utmCampaign: "nunta-cluj",
+        gclid: "EAIaIQobChMlonggclidvalue123",
+      });
+      expect(html).toContain("Google Ads");
+      expect(html).toContain("Click plătit din Google Ads");
+      expect(html).toContain("nunta-cluj");
+      expect(html).not.toContain("Google (organic)");
+    });
   });
 
   describe("location rendering", () => {

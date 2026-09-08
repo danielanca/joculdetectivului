@@ -149,6 +149,52 @@ describe("triggerEvent controller", () => {
     }));
   });
 
+  test("flags Google Ads clicks (gclid) in the subject and template", async () => {
+    const { triggerEvent, sendEmailMock, renderTriggerTemplateMock } = await loadController();
+
+    const res = createMockResponse();
+    await triggerEvent(
+      buildReq({
+        typeEvent: "Vizitator",
+        url: "/oferte/olx",
+        browserVersion: "Chrome/120",
+        referrer: "https://www.google.com/",
+        gclid: "EAIaIQob-test-gclid",
+        utmCampaign: "nunta-cluj",
+      }),
+      res,
+    );
+
+    expect(renderTriggerTemplateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ isGoogleAds: true, gclid: "EAIaIQob-test-gclid" }),
+    );
+    expect(sendEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({ subject: expect.stringContaining("Google Ads") }),
+    );
+  });
+
+  test("labels an organic Google visit as organic (no gclid / paid utm)", async () => {
+    const { triggerEvent, sendEmailMock, renderTriggerTemplateMock } = await loadController();
+
+    const res = createMockResponse();
+    await triggerEvent(
+      buildReq({
+        typeEvent: "Vizitator",
+        url: "/oferte/olx",
+        browserVersion: "Chrome/120",
+        referrer: "https://www.google.com/",
+      }),
+      res,
+    );
+
+    expect(renderTriggerTemplateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ isGoogleAds: false }),
+    );
+    expect(sendEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({ subject: expect.stringContaining("Google (organic)") }),
+    );
+  });
+
   test("returns 204 on second request from same IP within cooldown (visitor event)", async () => {
     const { triggerEvent, sendEmailMock } = await loadController();
 

@@ -55,6 +55,14 @@
 
         // Google tag — nu este necesar în admin.
         if (!isAdminPath) {
+          // Google Tag Manager
+          (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+          new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+          j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+          'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+          })(window,document,'script','dataLayer','GTM-N5FWFQFZ');
+          // End Google Tag Manager
+
           var s=document.createElement('script');s.async=1;
           s.src='https://www.googletagmanager.com/gtag/js?id=AW-10941123412';
           document.head.appendChild(s);
@@ -105,6 +113,11 @@
     />
   </head>
   <body>
+    <!-- Google Tag Manager (noscript) -->
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-N5FWFQFZ"
+    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+    <!-- End Google Tag Manager (noscript) -->
+
     <div id="app" style="height: 100%; width: 100%"><!--app-html--></div>
     <script type="module" src="/src/client/entry-client.tsx"></script>
   </body>

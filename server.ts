@@ -26,6 +26,9 @@ import handoverRouter from "./src/server/routes/handover.routes";
 import inspirationRouter from "./src/server/routes/inspiration.routes";
 import mementosRouter from "./src/server/routes/mementos.routes";
 import { analyticsPublicRouter, analyticsAdminRouter } from "./src/server/routes/analytics.routes";
+import { liveVisitorsPublicRouter, liveVisitorsAdminRouter } from "./src/server/routes/liveVisitors.routes";
+import { startLiveVisitorsSweeper } from "./src/server/services/liveVisitors.service";
+import { startLiveSessionsCleanupCron } from "./src/server/cron/liveSessionsCleanup.cron";
 import moderationRouter from "./src/server/routes/moderation.routes";
 import inspirationProposalsRouter from "./src/server/routes/inspiration-proposals.routes";
 import monitoringRouter from "./src/server/routes/monitoring.routes";
@@ -179,7 +182,9 @@ async function createServer() {
   app.use("/api/admin/seo-radar", seoRadarRouter);
   app.use("/api/campaign", campaignRouter);
   app.use("/api/analytics", analyticsPublicRouter);
+  app.use("/api/analytics", liveVisitorsPublicRouter);
   app.use(API_ROUTE_PREFIXES.admin, analyticsAdminRouter);
+  app.use(API_ROUTE_PREFIXES.admin, liveVisitorsAdminRouter);
   app.use(API_ROUTE_PREFIXES.admin, searchConsoleRouter);
   app.use(API_ROUTE_PREFIXES.admin, activityRouter);
   app.use(API_ROUTE_PREFIXES.admin, photoCollectionsRouter);
@@ -223,6 +228,8 @@ async function createServer() {
   startAlbumZipCheckCron();
   // startHealthStepsReminderCron(); // dezactivat — health tracker nu mai e folosit
   startPhotoboothNotifyCron();
+  startLiveSessionsCleanupCron();
+  startLiveVisitorsSweeper();
 
   if (showProgress) devLogger.step("Cron jobs", "monitor · mementos · analytics · album retention · post-event backup · errors · collaborator invites · photobooth notify");
 

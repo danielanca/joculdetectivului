@@ -73,6 +73,10 @@ async function loadMonitoringRouter() {
     requireSupremeAdmin: (_req: any, _res: any, next: any) => next(),
   }));
 
+  const sendEmailMock = vi.fn().mockResolvedValue(undefined);
+  vi.doMock("src/server/notifications/mailer", () => ({ sendEmail: sendEmailMock }));
+  vi.doMock("src/server/constants/credentials", () => ({ adminUser: { email: "admin@test.ro" } }));
+
   vi.doMock("firebase-admin/firestore", () => ({
     Timestamp: {
       fromDate: (d: Date) => ({ toDate: () => d }),
@@ -98,7 +102,9 @@ async function loadMonitoringRouter() {
     batchUpdateMock,
     batchCommitMock,
     captureClientError: (await import("src/server/monitoring/serverMonitor")).captureClientError as ReturnType<typeof vi.fn>,
+    sendEmailMock,
     postClientError: getHandler("post", "/client-error"),
+    postNotFound: getHandler("post", "/not-found"),
     getErrors: getHandler("get", "/errors"),
     getUnseenCount: getHandler("get", "/errors/unseen-count"),
     patchMarkSeen: getHandler("patch", "/errors/mark-seen"),
@@ -167,6 +173,62 @@ describe("monitoring.routes", () => {
       const res = createMockResponse();
 
       await postClientError({ body: { stack: "somewhere" } }, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(captureClientError).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("POST /not-found", () => {
+    test("logs the bad path and emails the admin", async () => {
+      const { postNotFound, captureClientError, sendEmailMock } = await loadMonitoringRouter();
+      const res = createMockResponse();
+
+      await postNotFound({
+        body: { path: "/oferta-nunta-cluj", referrer: "https://facebook.com/", userAgent: "Mozilla/5.0" },
+      }, res);
+
+      expect(captureClientError).toHaveBeenCalledWith(
+        "[404] /oferta-nunta-cluj",
+        expect.stringContaining("Referrer: https://facebook.com/"),
+        "/oferta-nunta-cluj",
+        undefined,
+        undefined,
+      );
+      // email is fire-and-forget — let the microtask queue flush
+      await Promise.resolve();
+      expect(sendEmailMock).toHaveBeenCalledWith(expect.objectContaining({
+        subject: expect.stringContaining("/oferta-nunta-cluj"),
+      }));
+      expect(res.json).toHaveBeenCalledWith({ ok: true });
+    });
+
+    test("ignores automated scanner paths", async () => {
+      const { postNotFound, captureClientError, sendEmailMock } = await loadMonitoringRouter();
+      const res = createMockResponse();
+
+      await postNotFound({ body: { path: "/wp-login.php" } }, res);
+
+      expect(captureClientError).not.toHaveBeenCalled();
+      expect(sendEmailMock).not.toHaveBeenCalled();
+      expect(res.json).toHaveBeenCalledWith({ ok: true, ignored: true });
+    });
+
+    test("only emails once per path within the cooldown window", async () => {
+      const { postNotFound, sendEmailMock } = await loadMonitoringRouter();
+
+      await postNotFound({ body: { path: "/same-bad-link" } }, createMockResponse());
+      await postNotFound({ body: { path: "/same-bad-link" } }, createMockResponse());
+      await Promise.resolve();
+
+      expect(sendEmailMock).toHaveBeenCalledTimes(1);
+    });
+
+    test("rejects payload without a path", async () => {
+      const { postNotFound, captureClientError } = await loadMonitoringRouter();
+      const res = createMockResponse();
+
+      await postNotFound({ body: {} }, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(captureClientError).not.toHaveBeenCalled();

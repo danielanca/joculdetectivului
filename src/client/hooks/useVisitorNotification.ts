@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { getCookie, setCookie, isBrowser } from "../utils/functions";
 import { sendTriggerEmail } from "../utils/triggers";
+import { captureLandingMeta, getLandingMeta } from "../utils/sessionAttribution";
 
 const SKIP_PREFIXES = ["/admin", "/login", "/revin", "/wedding-hub", "/colaborator"];
 const ADMIN_COOKIE = "av_admin";
@@ -81,6 +82,10 @@ export function useVisitorNotification() {
     if (getCookie(ADMIN_COOKIE) === "1") return;
     if (SKIP_PREFIXES.some((prefix) => location.pathname.startsWith(prefix))) return;
 
+    // Snapshot the landing referrer/UTM/gclid before any of it can be lost — the
+    // effect order in App.tsx doesn't guarantee this ran elsewhere first.
+    captureLandingMeta();
+
     const isOfferVisit = location.pathname === OFFER_PATH;
     // Oferta are deja notificarea proprie din /api/oferte/:slug/view.
     if (isOfferVisit) return;
@@ -113,6 +118,20 @@ export function useVisitorNotification() {
       setCookie(VISITOR_COOKIE, "1", VISITOR_COOKIE_DAYS);
     }
 
-    sendTriggerEmail({ typeEvent: "Vizitator", url: location.pathname, isNewVisitor }).catch(() => {});
+    // Forward the landing attribution so the server can tell Google Ads (gclid /
+    // wbraid / gbraid, or utm_medium=cpc) apart from organic Google search.
+    const landing = getLandingMeta();
+    sendTriggerEmail({
+      typeEvent: "Vizitator",
+      url: location.pathname,
+      isNewVisitor,
+      utmSource: landing?.utmSource,
+      utmMedium: landing?.utmMedium,
+      utmCampaign: landing?.utmCampaign,
+      keyword: landing?.keyword,
+      gclid: landing?.gclid,
+      wbraid: landing?.wbraid,
+      gbraid: landing?.gbraid,
+    }).catch(() => {});
   }, [location.pathname]);
 }

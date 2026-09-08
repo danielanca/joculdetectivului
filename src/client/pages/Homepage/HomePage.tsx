@@ -59,6 +59,7 @@ const HomePage = () => {
       <Hero />
       {/* <CTAPreview /> */}
       <AncaVisualsPromo />
+      <div data-track-section="video">
       <VideoPreview
         src="https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2FBucurestiNunta.mp4?alt=media&token=74d6a5b5-0906-45e1-950c-9632bba7889b"
         poster=""
@@ -71,9 +72,10 @@ const HomePage = () => {
         src="https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2FClaudiu%20Scurt.mp4?alt=media&token=c79e0f29-501f-4efb-be3a-73f52b3d2e38"
         poster="https://firebasestorage.googleapis.com/v0/b/joculdetectivului.appspot.com/o/ancavisuals%2FClaudiu%20Scurt.jpg?alt=media&token=02cc0535-5268-43fb-8a6c-63ede75b2c6f"
       />
+      </div>
       <Philosophy />
-      <Approach />
-      <FAQPage />
+      <div data-track-section="servicii"><Approach /></div>
+      <div data-track-section="întrebări frecvente"><FAQPage /></div>
       <Footer />
     </div>
   );

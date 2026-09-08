@@ -9,6 +9,10 @@ interface EventsTrigger {
   utmCampaign?: string;
   landingPath?: string;
   keyword?: string;
+  // Google Ads click identifiers — present only on paid clicks (auto-tagging).
+  gclid?: string;
+  wbraid?: string;
+  gbraid?: string;
 }
 
 const sanitizeInput = (input: string): string =>
@@ -23,6 +27,9 @@ export const sendTriggerEmail = async ({
   utmCampaign,
   landingPath,
   keyword,
+  gclid,
+  wbraid,
+  gbraid,
 }: EventsTrigger) => {
   if (!typeEvent || !url) {
     throw new Error("Invalid input: typeEvent and url are required.");
@@ -43,6 +50,9 @@ export const sendTriggerEmail = async ({
       utmCampaign: utmCampaign ? sanitizeInput(utmCampaign) : undefined,
       landingPath: landingPath ? sanitizeInput(landingPath) : undefined,
       keyword: keyword ? sanitizeInput(keyword) : undefined,
+      gclid: gclid ? sanitizeInput(gclid) : undefined,
+      wbraid: wbraid ? sanitizeInput(wbraid) : undefined,
+      gbraid: gbraid ? sanitizeInput(gbraid) : undefined,
     }),
   });
 
