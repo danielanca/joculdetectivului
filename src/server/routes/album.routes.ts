@@ -3,6 +3,7 @@ import express from "express";
 import type { Request, Response } from "express";
 import { getAlbum, downloadSelectedPhotos, postPrintSelection, downloadAll, deletePhoto, downloadPrintDynamic, addDeliveryAddress, getDeliveryAddress, addSwissLink } from "../controllers/album.controller";
 import { getAlbumStats } from "../services/albumStats.service";
+import { resolveAlbumSlug } from "../services/album.service";
 import { getAlbumRetentionBySlug } from "../services/albumRetention.service";
 import { getClientIp, fetchIpInfo } from "../utils/ipinfo";
 import { sendEmail } from "../notifications/mailer";
@@ -12,6 +13,13 @@ import { adminUser } from "../constants/credentials";
 const ADMIN_EMAIL = adminUser.email;
 
 const router = Router();
+
+// Acceptă atât 8august2026 cât și 08august2026 — mapăm la folderul real din Bunny.
+router.param("slug", (req, _res, next, value) => {
+  resolveAlbumSlug(String(value))
+    .then((canonical) => { req.params.slug = canonical; next(); })
+    .catch(() => next());
+});
 
 router.get("/admin/list", async (req: Request, res: Response) => {
   try {

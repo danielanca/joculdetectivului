@@ -64,6 +64,49 @@ export function invalidateAlbumCache(slug: string): void {
   console.log(`[album-cache] invalidat: ${slug}`);
 }
 
+// ── Slug canonicalizare (8august2026 ⇄ 08august2026) ─────────────────────────
+// Ziua din slug poate fi scrisă cu sau fără zero în față. Acceptăm ambele forme
+// și le mapăm la folderul care există efectiv în Bunny.
+const SLUG_RESOLVE_TTL_MS = 30 * 60 * 1000;
+const slugResolveCache = new Map<string, { canonical: string; at: number }>();
+
+function slugDayVariants(slug: string): string[] {
+  const match = slug.match(/^(\d{1,2})(\D.*)$/);
+  if (!match) return [slug];
+  const [, day, rest] = match;
+  const n = Number(day);
+  if (!Number.isFinite(n) || n < 1 || n > 31) return [slug];
+  return [...new Set([slug, `${n}${rest}`, `${String(n).padStart(2, "0")}${rest}`])];
+}
+
+async function albumHasPhotos(slug: string): Promise<boolean> {
+  try {
+    const [preview, photos] = await Promise.all([
+      listFiles(`${slug}/photos_preview`),
+      listFiles(`${slug}/photos`),
+    ]);
+    return preview.length > 0 || photos.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/** Întoarce slug-ul real (folderul din Bunny cu poze). Preferă slug-ul cerut. */
+export async function resolveAlbumSlug(requested: string): Promise<string> {
+  const variants = slugDayVariants(requested);
+  if (variants.length === 1) return requested;
+
+  const cached = slugResolveCache.get(requested);
+  if (cached && Date.now() - cached.at < SLUG_RESOLVE_TTL_MS) return cached.canonical;
+
+  let canonical = requested;
+  for (const variant of variants) {
+    if (await albumHasPhotos(variant)) { canonical = variant; break; }
+  }
+  slugResolveCache.set(requested, { canonical, at: Date.now() });
+  return canonical;
+}
+
 // ── Bunny helpers ─────────────────────────────────────────────────────────────
 async function checkAlbumExists(slug: string): Promise<boolean> {
   try {
