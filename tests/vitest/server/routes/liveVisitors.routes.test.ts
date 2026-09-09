@@ -186,6 +186,56 @@ describe("liveVisitors.routes", () => {
       expect(sendEmail).toHaveBeenCalledTimes(1);
     });
 
+    test("emails with the checked date when someone verifies availability", async () => {
+      const { postEvent, sendEmail, logActivity } = await loadRouter();
+      const res = createMockResponse();
+      await postEvent(
+        { body: { sessionId: "s1", event: "availability_checked", page: "/contact", meta: { date: "15 August 2026", dateKey: "2026-08-15", available: true } }, headers: { "user-agent": realUa } },
+        res,
+      );
+      expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({
+        subject: expect.stringContaining("15 August 2026"),
+        html: expect.stringContaining("15 August 2026"),
+      }));
+      expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({ title: expect.stringContaining("15 August 2026") }));
+    });
+
+    test("emails once per distinct checked date (not once per session)", async () => {
+      const { postEvent, sendEmail } = await loadRouter();
+      const mk = (date: string) => ({ body: { sessionId: "s1", event: "availability_checked", page: "/contact", meta: { date, dateKey: date, available: true } }, headers: { "user-agent": realUa } });
+      await postEvent(mk("15 August 2026"), createMockResponse());
+      await postEvent(mk("15 August 2026"), createMockResponse()); // same date → deduped
+      await postEvent(mk("20 August 2026"), createMockResponse()); // new date → emails
+      expect(sendEmail).toHaveBeenCalledTimes(2);
+    });
+
+    test("form_submitted email/log title reflects meta.kind (contact vs delivery vs subscribe)", async () => {
+      const { postEvent, sendEmail, logActivity } = await loadRouter();
+      const post = (sid: string, kind: string) =>
+        postEvent({ body: { sessionId: sid, event: "form_submitted", page: "/media/x", meta: { kind } }, headers: { "user-agent": realUa } }, createMockResponse());
+      await post("c1", "contact");
+      await post("d1", "delivery");
+      await post("s1", "subscribe");
+
+      const subjects = (sendEmail.mock.calls as { subject: string }[][]).map((c) => c[0].subject).join("\n");
+      const titles = (logActivity.mock.calls as { title: string }[][]).map((c) => c[0].title).join("\n");
+      expect(subjects).toContain("contactat");
+      expect(subjects).toContain("livrare");
+      expect(subjects).toContain("notificare");
+      expect(titles).toContain("contactat");
+      expect(titles).toContain("livrare");
+      expect(titles).toContain("notificare");
+    });
+
+    test("form_submitted emails once per kind (contact and delivery are separate)", async () => {
+      const { postEvent, sendEmail } = await loadRouter();
+      const mk = (kind: string) => ({ body: { sessionId: "s1", event: "form_submitted", page: "/x", meta: { kind } }, headers: { "user-agent": realUa } });
+      await postEvent(mk("subscribe"), createMockResponse());
+      await postEvent(mk("subscribe"), createMockResponse()); // deduped
+      await postEvent(mk("contact"), createMockResponse());   // different kind → emails
+      expect(sendEmail).toHaveBeenCalledTimes(2);
+    });
+
     test("does not email for a generic button click", async () => {
       const { postEvent, sendEmail } = await loadRouter();
       const res = createMockResponse();

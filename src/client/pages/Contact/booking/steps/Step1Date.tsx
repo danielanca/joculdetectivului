@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo } from "react";
+import { reportAvailabilityCheck } from "../../../../utils/liveEvent";
 
 interface Step1DateProps {
   day: number;
@@ -94,13 +95,15 @@ const Step1Date: React.FC<Step1DateProps> = ({
 
   const handleCheckAvailability = () => {
     const key = toKey(day, month, year);
-    if (bookedDates.includes(key)) {
-      setIsAvailable(false);
-      setErrors({ date: "Ne pare rău, această dată este deja rezervată. Te rugăm să alegi o altă zi." });
-    } else {
+    const available = !bookedDates.includes(key);
+    if (available) {
       setIsAvailable(true);
       setErrors({});
+    } else {
+      setIsAvailable(false);
+      setErrors({ date: "Ne pare rău, această dată este deja rezervată. Te rugăm să alegi o altă zi." });
     }
+    reportAvailabilityCheck(humanDate, key, available);
   };
 
   return (

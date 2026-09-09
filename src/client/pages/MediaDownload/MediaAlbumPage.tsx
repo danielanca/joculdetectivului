@@ -14,6 +14,7 @@ import MediaConsentModal, { MediaRetentionReminder } from "./MediaConsentModal";
 import AncaLoader from "../../components/UI/AncaLoader";
 import AncaVisualsPromo from "./AncaVisualsPromo";
 import { OFFER_SERVICES } from "../../../shared/offers/offerServices";
+import { sendLiveEvent } from "../../utils/liveEvent";
 
 // ── TYPES ────────────────────────────────────────────────────────────────────
 
@@ -465,6 +466,8 @@ export default function MediaAlbumPage() {
   // Trimite email admin automat când diagnosticul apare
   useEffect(() => {
     if (!slug || !album) return;
+    // Nu raporta dacă cel care vede ecranul e chiar adminul logat (test propriu)
+    if (isAdmin || auth.authorise) return;
     const photosEmpty = !album.photos?.length;
     if (!photosEmpty && !imageLoadError) return;
     fetch(`/api/album/${slug}/report-error`, {
@@ -478,7 +481,7 @@ export default function MediaAlbumPage() {
         timestamp: new Date().toLocaleString("ro-RO"),
       }),
     }).catch(() => {});
-  }, [album, imageLoadError, slug]);
+  }, [album, imageLoadError, slug, isAdmin, auth.authorise]);
 
   useEffect(() => {
     if (!slug) return;
@@ -590,6 +593,8 @@ export default function MediaAlbumPage() {
   // Trimite raport admin dacă albumul durează >8s să se încarce
   useEffect(() => {
     if (!loadingSlow || !slug) return;
+    // Nu raporta dacă cel care vede ecranul e chiar adminul logat (test propriu)
+    if (isAdmin || auth.authorise) return;
     fetch(`/api/album/${slug}/report-error`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -600,7 +605,7 @@ export default function MediaAlbumPage() {
         timestamp: new Date().toLocaleString("ro-RO"),
       }),
     }).catch(() => {});
-  }, [loadingSlow, slug]);
+  }, [loadingSlow, slug, isAdmin, auth.authorise]);
 
   useEffect(() => {
     if (!slug) return;
@@ -1050,6 +1055,13 @@ export default function MediaAlbumPage() {
       });
       const data = await response.json() as { ok?: boolean };
       setSubscribeStatus(data.ok ? "success" : "error");
+      if (data.ok) {
+        sendLiveEvent("form_submitted", {
+          priority: "high",
+          label: "📧 S-a abonat — vrea să fie anunțat când sunt gata pozele",
+          meta: { kind: "subscribe" },
+        });
+      }
     } catch {
       setSubscribeStatus("error");
     }

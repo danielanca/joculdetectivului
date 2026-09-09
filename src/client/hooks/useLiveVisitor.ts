@@ -70,6 +70,35 @@ function friendlyPageName(path: string): string {
   return p;
 }
 
+type FormKind = "contact" | "delivery" | "subscribe" | "other";
+
+/** Figure out what kind of form was interacted with — reading only field metadata, never values. */
+function classifyForm(
+  form: HTMLFormElement | null,
+  path: string,
+): { kind: FormKind; label: string; startedLabel: string; priority: Priority } {
+  const fields = form ? Array.from(form.querySelectorAll("input, select, textarea")) : [];
+  const attrText = (el: Element) =>
+    `${el.getAttribute("name") ?? ""} ${el.getAttribute("placeholder") ?? ""} ${el.getAttribute("aria-label") ?? ""} ${el.id} ${el.previousElementSibling?.textContent ?? ""}`.toLowerCase();
+  const blob = form
+    ? `${form.id} ${form.className} ${form.getAttribute("name") ?? ""} ${form.getAttribute("action") ?? ""}`.toLowerCase()
+    : "";
+  const hasAddress = fields.some((f) => /address|strad|street|jude[tț]|county|ora[sș]|city|localit|easybox|locker|cod po[sș]tal|postal/.test(attrText(f)));
+  const hasTel = fields.some((f) => f.getAttribute("type") === "tel" || /phone|telefon|whatsapp|mobil/.test(attrText(f)));
+  const hasEmail = fields.some((f) => f.getAttribute("type") === "email" || /e-?mail/.test(attrText(f)));
+
+  if (hasAddress || /deliver|address|livrare|adres/.test(blob)) {
+    return { kind: "delivery", label: "📦 A completat adresa de livrare — vrea albumul fizic", startedLabel: "Completează adresa de livrare", priority: "high" };
+  }
+  if (/subscribe|abon|newsletter|notific/.test(blob) || (hasEmail && !hasTel && fields.length <= 3 && !path.startsWith("/contact") && !path.startsWith("/oferta"))) {
+    return { kind: "subscribe", label: "📧 S-a abonat — vrea să fie anunțat când sunt gata pozele", startedLabel: "Se abonează la album", priority: "high" };
+  }
+  if (path === "/contact" || path.startsWith("/oferta") || /contact|booking|rezerv|cerere|ofert/.test(blob) || (hasTel && !path.startsWith("/media"))) {
+    return { kind: "contact", label: "🎯 Un client a trimis formularul de contact — vrea să-l suni", startedLabel: "A început formularul de contact", priority: "critical" };
+  }
+  return { kind: "other", label: "A trimis un formular", startedLabel: "A început un formular", priority: "normal" };
+}
+
 function isPricingPath(path: string): boolean {
   return /^\/(oferta|pricing|preturi)(\/|$)/.test(path);
 }
@@ -144,6 +173,9 @@ export function useLiveVisitor() {
       ) as HTMLElement | null;
       if (!el) return;
 
+      // The availability "Verifică" button reports its own richer event (with the date).
+      if (el.classList.contains("verify-btn")) return;
+
       const href = (el.getAttribute("href") ?? "").toLowerCase();
       const rawLabel =
         (el.textContent ?? "").replace(/\s+/g, " ").trim() ||
@@ -187,15 +219,24 @@ export function useLiveVisitor() {
     };
     document.addEventListener("click", onClick, true);
 
-    // ── Form interaction (never reads values) ─────────────────────────────
+    // ── Form interaction (classifies the form; never reads values) ────────
     const seenForms = new WeakSet<HTMLFormElement>();
     const onFocusIn = (e: FocusEvent) => {
       const form = (e.target as HTMLElement | null)?.closest?.("form") as HTMLFormElement | null;
       if (!form || seenForms.has(form)) return;
       seenForms.add(form);
-      send("form_started", { priority: "high", label: "Formular" });
+      const c = classifyForm(form, window.location.pathname);
+      send("form_started", {
+        priority: c.priority === "critical" ? "high" : "normal",
+        label: c.startedLabel,
+        meta: { kind: c.kind },
+      });
     };
-    const onSubmit = () => send("form_submitted", { priority: "critical", label: "Formular trimis" });
+    const onSubmit = (e: Event) => {
+      const form = e.target as HTMLFormElement | null;
+      const c = classifyForm(form && form.tagName === "FORM" ? form : null, window.location.pathname);
+      send("form_submitted", { priority: c.priority, label: c.label, meta: { kind: c.kind } });
+    };
     document.addEventListener("focusin", onFocusIn, true);
     document.addEventListener("submit", onSubmit, true);
 

@@ -41,13 +41,23 @@ const EMAIL_EVENTS: Record<string, string> = {
   whatsapp_clicked: "💬 Click WhatsApp",
   phone_revealed: "📞 Număr de telefon afișat",
   contact_clicked: "🖱️ Click Contactează-ne",
-  form_submitted: "✅ Formular de contact trimis",
+  form_submitted: "✅ Formular trimis",
+  availability_checked: "📅 A verificat disponibilitatea",
 };
+// `form_submitted` is one event but three very different intentions — title by `meta.kind`.
+const FORM_KIND_TITLE: Record<string, string> = {
+  contact: "🎯 Un client vrea să fie contactat",
+  delivery: "📦 Adresă de livrare completată (vrea albumul fizic)",
+  subscribe: "📧 Abonare la album — vrea notificare când sunt gata pozele",
+  other: "✅ Formular trimis",
+};
+// Events written to the activity feed (`site_activity`) beyond the critical set.
+const LOGGED_EVENTS = new Set([...CRITICAL_EVENTS, "availability_checked"]);
 const EVENT_EMAIL_COOLDOWN_MS = 10 * 60_000;
 const eventEmailLastSent = new Map<string, number>();
 
-function shouldEmailEvent(sessionId: string, eventName: string): boolean {
-  const key = `${sessionId}::${eventName}`;
+function shouldEmailEvent(sessionId: string, eventName: string, discriminator = ""): boolean {
+  const key = `${sessionId}::${eventName}::${discriminator}`;
   const now = Date.now();
   const last = eventEmailLastSent.get(key);
   if (last && now - last < EVENT_EMAIL_COOLDOWN_MS) return false;
@@ -69,10 +79,18 @@ function sendEventEmail(
   eventBody: Record<string, unknown>,
 ): void {
   const safe = (v: string) => v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const title = EMAIL_EVENTS[eventName] ?? eventName;
+  const formKind = eventName === "form_submitted" ? String(eventBody.kind ?? "other") : "";
+  const title = formKind
+    ? (FORM_KIND_TITLE[formKind] ?? FORM_KIND_TITLE.other)
+    : (EMAIL_EVENTS[eventName] ?? eventName);
   const loc = [session.city, session.country].filter(Boolean).join(", ") || "necunoscută";
   const attr = session.attribution ?? {};
+  const checkedDate = eventName === "availability_checked" ? String(eventBody.date ?? "") : "";
+  const dateFree = eventBody.available;
   const rows: [string, string][] = [
+    ...(checkedDate
+      ? [["Data verificată", `${checkedDate}${dateFree === false ? " — OCUPATĂ" : dateFree === true ? " — liberă ✅" : ""}`] as [string, string]]
+      : []),
     ["Vizitator", `#${session.visitorNumber}`],
     ["Sursă", `${SOURCE_RO[session.source] ?? session.source}${session.isGoogleAds ? " ✅" : ""}`],
     ["Pagina", session.currentPage || "/"],
@@ -98,11 +116,11 @@ function sendEventEmail(
       <p style="margin:18px 0 0;"><a href="https://ancavisuals.ro/admin/live" style="color:#c9a96e;">Deschide panoul live →</a></p>
     </div>`;
 
-  sendEmail({
-    to: adminUser.email,
-    subject: `${title} — Vizitator #${session.visitorNumber}${session.isGoogleAds ? " (Google Ads)" : ""}`,
-    html,
-  }).catch(() => {});
+  const subject = checkedDate
+    ? `📅 Verificare disponibilitate: ${checkedDate}${dateFree === false ? " (ocupată)" : ""} — Vizitator #${session.visitorNumber}`
+    : `${title} — Vizitator #${session.visitorNumber}${session.isGoogleAds ? " · Google Ads" : ""} · ${session.currentPage || "/"}`;
+
+  sendEmail({ to: adminUser.email, subject, html }).catch(() => {});
 }
 
 function isAdminRequest(req: Request): boolean {
@@ -139,29 +157,40 @@ liveVisitorsPublicRouter.post("/live/event", async (req: Request, res: Response)
     }
 
     const { session, event } = recordEvent(body, { ip, ua, geo });
+    const meta = (body.meta ?? {}) as Record<string, unknown>;
+    const checkedDate = body.event === "availability_checked" ? String(meta.date ?? "") : "";
+    const formKind = body.event === "form_submitted" ? String(meta.kind ?? "other") : "";
+    const emailDiscriminator = checkedDate || formKind;
 
-    if (CRITICAL_EVENTS.has(body.event)) {
+    if (LOGGED_EVENTS.has(body.event)) {
       logActivity({
         type: "lead",
-        title: CRITICAL_LABELS[body.event] ?? body.event,
+        title: (formKind
+          ? (FORM_KIND_TITLE[formKind] ?? FORM_KIND_TITLE.other)
+          : (CRITICAL_LABELS[body.event] ?? EMAIL_EVENTS[body.event] ?? body.event)) + (checkedDate ? `: ${checkedDate}` : ""),
         description: `${[session.city, session.country].filter(Boolean).join(", ") || "locație necunoscută"} · ${event.page}${session.isGoogleAds ? " · Google Ads" : ""}`,
         metadata: {
           event: body.event,
           page: event.page,
           source: session.source,
           visitorNumber: String(session.visitorNumber),
+          ...(checkedDate ? { checkedDate, available: String(meta.available ?? "") } : {}),
+          ...(formKind ? { formKind } : {}),
         },
         emailSent: false,
       }).catch(() => {});
     }
 
-    if (EMAIL_EVENTS[body.event] && shouldEmailEvent(body.sessionId, body.event)) {
+    if (EMAIL_EVENTS[body.event] && shouldEmailEvent(body.sessionId, body.event, emailDiscriminator)) {
       sendEventEmail(body.event, session, {
         event: body.event,
         page: event.page,
         label: body.label ?? event.label,
-        text: (body.meta as Record<string, unknown> | undefined)?.text,
-        href: (body.meta as Record<string, unknown> | undefined)?.href,
+        kind: formKind || undefined,
+        text: meta.text,
+        href: meta.href,
+        date: meta.date,
+        available: meta.available,
         priority: event.priority,
         at: new Date(event.at).toISOString(),
         visitorNumber: session.visitorNumber,
@@ -239,37 +268,57 @@ liveVisitorsAdminRouter.get(
   requireSupremeAdmin,
   async (req: Request, res: Response) => {
     try {
-      const limit = Math.min(Number(req.query.limit) || 50, 300);
+      const limit = Math.min(Number(req.query.limit) || 100, 500);
+      const wantArchived = req.query.archived === "1" || req.query.archived === "true";
+      // Fetch a wider window then filter by archived flag in code (legacy docs
+      // have no `archived` field, which a Firestore `where` would exclude).
       const snap = await firestore()
         .collection("live_sessions")
         .orderBy("startedAtMs", "desc")
-        .limit(limit)
+        .limit(limit * 3)
         .get();
 
-      const items = snap.docs.map((doc) => {
-        const d = doc.data();
-        return {
-          sessionId: doc.id,
-          visitorNumber: d.visitorNumber ?? null,
-          firstSeenAt: d.firstSeenAt ?? d.startedAtMs ?? null,
-          endedAt: d.endedAt ?? null,
-          endReason: d.endReason ?? null,
-          durationSeconds: d.durationSeconds ?? 0,
-          pageCount: d.pageCount ?? 0,
-          path: d.path ?? [],
-          events: d.events ?? [],
-          source: d.source ?? "direct",
-          isGoogleAds: d.isGoogleAds ?? false,
-          attribution: d.attribution ?? {},
-          city: d.city ?? "",
-          country: d.country ?? "",
-          deviceType: d.deviceType ?? "desktop",
-        };
-      });
+      const items = snap.docs
+        .filter((doc) => Boolean(doc.data().archived) === wantArchived)
+        .slice(0, limit)
+        .map((doc) => {
+          const d = doc.data();
+          delete d.updatedAt; // Firestore Timestamp — not needed by the client
+          delete d.ip;
+          delete d.ua;
+          return {
+            ...d,
+            sessionId: doc.id,
+            archived: Boolean(d.archived),
+            firstSeenAt: d.firstSeenAt ?? d.startedAtMs ?? null,
+            path: d.path ?? [],
+            events: d.events ?? [],
+            source: d.source ?? "direct",
+            attribution: d.attribution ?? {},
+          };
+        });
 
       res.json({ sessions: items });
     } catch (error) {
       console.error("[live-visitors] GET /live/history failed:", error);
+      res.status(500).json({ error: "failed" });
+    }
+  },
+);
+
+// POST /api/admin/analytics/live/:sessionId/archive — { archived: boolean }
+liveVisitorsAdminRouter.post(
+  "/analytics/live/:sessionId/archive",
+  requireFirebaseAuth,
+  requireSupremeAdmin,
+  async (req: Request, res: Response) => {
+    try {
+      const { sessionId } = req.params;
+      const archived = (req.body as { archived?: boolean }).archived !== false;
+      await firestore().collection("live_sessions").doc(sessionId).set({ archived }, { merge: true });
+      res.json({ ok: true, archived });
+    } catch (error) {
+      console.error("[live-visitors] POST /live/:sessionId/archive failed:", error);
       res.status(500).json({ error: "failed" });
     }
   },

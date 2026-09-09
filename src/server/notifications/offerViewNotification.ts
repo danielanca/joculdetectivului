@@ -64,6 +64,36 @@ function locationLabel(ipInfo: IpInfo | null): string {
   return [ipInfo?.city, ipInfo?.region, ipInfo?.country].filter(Boolean).join(", ") || "Necunoscută";
 }
 
+const PAID_MEDIUMS = new Set(["cpc", "ppc", "paid", "paidsearch", "sem"]);
+
+/** Where did the visit come from — Google Ads, organic search, social, referral, direct. */
+export function classifyTraffic(pageUrl: string, referrer: string): { label: string; detail: string } {
+  let params = new URLSearchParams();
+  try { params = new URL(pageUrl).searchParams; } catch { /* not a full URL */ }
+
+  const gclid = params.get("gclid") || params.get("wbraid") || params.get("gbraid");
+  const gadSource = params.get("gad_source");
+  const campaign = params.get("gad_campaignid") || params.get("utm_campaign") || "";
+  const utmSource = (params.get("utm_source") || "").toLowerCase();
+  const utmMedium = (params.get("utm_medium") || "").toLowerCase();
+
+  if (gclid || gadSource === "1" || (utmSource === "google" && PAID_MEDIUMS.has(utmMedium))) {
+    return { label: "Google Ads", detail: [campaign && `campanie ${campaign}`, gclid && "gclid ✓"].filter(Boolean).join(" · ") };
+  }
+  if (utmSource && utmMedium) {
+    return { label: `Campanie ${utmSource}`, detail: [utmMedium, campaign].filter(Boolean).join(" · ") };
+  }
+
+  let host = "";
+  try { host = new URL(referrer).hostname.replace(/^www\./, "").toLowerCase(); } catch { /* not a URL */ }
+  if (/(^|\.)google\./.test(host)) return { label: "Google organic", detail: "căutare Google (fără reclamă)" };
+  if (/(^|\.)(bing|yahoo|duckduckgo|ecosia|yandex|startpage)\./.test(host)) return { label: "Căutare organică", detail: host };
+  if (/(^|\.)(facebook|instagram|fb|t\.co|tiktok|linkedin|pinterest)\./.test(host)) return { label: "Social", detail: host };
+  if (/(chatgpt|openai|claude\.ai|perplexity|gemini\.google|grok)/.test(host)) return { label: "AI", detail: host };
+  if (host && !host.includes("ancavisuals")) return { label: "Referral", detail: host };
+  return { label: "Direct", detail: "link tastat / salvat / din aplicație" };
+}
+
 function mapsLink(loc?: string): string | null {
   if (!loc || !/^-?\d+(?:\.\d+)?,-?\d+(?:\.\d+)?$/.test(loc.replace(/\s/g, ""))) return null;
   return `https://www.google.com/maps?q=${encodeURIComponent(loc.replace(/\s/g, ""))}`;
@@ -95,6 +125,7 @@ export async function sendOfferViewNotification(input: OfferViewNotificationInpu
   const { device, browser, os } = parseDevice(userAgent);
   const mapUrl = mapsLink(ipInfo?.loc);
   const kindLabel = input.kind === "campaign" ? "Campanie vizualizată" : "Ofertă vizualizată";
+  const traffic = classifyTraffic(pageUrl, referrer);
   const location = locationLabel(ipInfo);
   const locationWithMap = mapUrl
     ? `${escapeHtml(location)} (<a href="${mapUrl}" style="color:#6d28d9;">hartă</a>)`
@@ -102,7 +133,7 @@ export async function sendOfferViewNotification(input: OfferViewNotificationInpu
 
   await sendEmail({
     to: adminUser.email,
-    subject: `👁 ${kindLabel} — /${input.slug} — ${subjectTime}`,
+    subject: `👁 ${kindLabel} · ${traffic.label} — /${input.slug} — ${subjectTime}`,
     html: `
       <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;background:#f5f5f5;padding:24px;color:#171717;">
         <div style="background:#111;color:#fff;border-radius:14px 14px 0 0;padding:24px;">
@@ -128,6 +159,7 @@ export async function sendOfferViewNotification(input: OfferViewNotificationInpu
         </div>
         <div style="background:#fff;padding:0 24px 22px;">
           <p style="margin:0 0 6px;color:#737373;font-size:12px;font-weight:600;">Sursă și navigare</p>
+          ${row("Sursă trafic", traffic.detail ? `${traffic.label} — ${traffic.detail}` : traffic.label)}
           ${row("Pagina accesată", pageUrl)}
           ${row("Referrer / reclamă", referrer)}
           <p style="margin:16px 0 6px;color:#737373;font-size:12px;font-weight:600;">User-Agent complet</p>

@@ -1,7 +1,19 @@
 import React, { useEffect, useRef, useState } from "react";
 import { measureOaiq } from "../../utils/oaiq";
 import { getCookie } from "../../utils/functions";
+import { reportAvailabilityCheck } from "../../utils/liveEvent";
 import PhoneNumberReveal from "../../components/PhoneReveal/PhoneNumberReveal";
+
+const MONTHS_RO = ["ianuarie", "februarie", "martie", "aprilie", "mai", "iunie", "iulie", "august", "septembrie", "octombrie", "noiembrie", "decembrie"];
+const MONTHS_RO_CAP = MONTHS_RO.map((m) => m[0].toUpperCase() + m.slice(1));
+function formatDateRo(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) return iso;
+  return `${Number(m[3])} ${MONTHS_RO[Number(m[2]) - 1]} ${m[1]}`;
+}
+const daysInMonth = (year: number, monthZeroBased: number) => new Date(year, monthZeroBased + 1, 0).getDate();
+const toIso = (day: number, monthZeroBased: number, year: number) =>
+  `${year}-${String(monthZeroBased + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 
 export interface CampaignPackage {
   id: string;
@@ -62,6 +74,14 @@ function PhoneIcon() {
   );
 }
 
+function InstagramIcon() {
+  return (
+    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z" />
+    </svg>
+  );
+}
+
 function ArrowIcon() {
   return (
     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
@@ -90,9 +110,43 @@ const journeySteps = [
 
 export default function CampaignLandingPage({ page }: CampaignLandingPageProps) {
   const whatsappLink = `https://wa.me/${page.whatsappNumber.replace(/\D/g, "")}?text=${encodeURIComponent("Bună! Am văzut oferta voastră și aș dori mai multe detalii.")}`;
-  const [form, setForm] = useState({ name: "", phone: "", eventDate: "", eventType: "", location: "" });
+  const defaultDate = (() => {
+    const now = new Date();
+    let month = now.getMonth() + 1; // next month
+    let year = now.getFullYear();
+    if (month > 11) { month = 0; year += 1; }
+    return { day: 1, month, year };
+  })();
+  const [dateParts, setDateParts] = useState(defaultDate);
+  const [form, setForm] = useState({
+    name: "", phone: "", eventType: "Nuntă", location: "",
+    eventDate: toIso(defaultDate.day, defaultDate.month, defaultDate.year),
+  });
   const [formStatus, setFormStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [bookedDates, setBookedDates] = useState<string[]>([]);
+  const [availStatus, setAvailStatus] = useState<"idle" | "checking" | "available" | "unavailable">("idle");
+  const [leaveNumber, setLeaveNumber] = useState(false);
+
+  const setDatePart = (patch: Partial<typeof dateParts>) => {
+    setDateParts((prev) => {
+      const next = { ...prev, ...patch };
+      const maxDay = daysInMonth(next.year, next.month);
+      if (next.day > maxDay) next.day = maxDay;
+      setForm((f) => ({ ...f, eventDate: toIso(next.day, next.month, next.year) }));
+      return next;
+    });
+    setAvailStatus("idle");
+    setLeaveNumber(false);
+  };
+
+  useEffect(() => {
+    fetch("/api/booked-dates")
+      .then((r) => r.json())
+      .then((d: { dates?: string[] }) => setBookedDates(d.dates ?? []))
+      .catch(() => setBookedDates([]));
+  }, []);
   const [galleryExpanded, setGalleryExpanded] = useState(false);
+  const GALLERY_INITIAL = 16;
   const [spinCount, setSpinCount] = useState(0);
   const [spinResult, setSpinResult] = useState<"idle" | "spinning" | "lost" | "won">("idle");
   const [wheelRotation, setWheelRotation] = useState(0);
@@ -153,7 +207,8 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
     if (spinCount >= 3 || promoSeconds <= 0 || spinResult === "won" || spinResult === "spinning") return;
     notifyInteraction("spinner");
     const nextSpin = spinCount + 1;
-    const targetAngle = nextSpin === 1 ? 180 : 60;
+    // wedge centres (deg from top, clockwise): FOTOCABINĂ 0 · VIDEOBOOTH 120 · MAI ÎNCEARCĂ 240
+    const targetAngle = nextSpin === 1 ? 240 : 0;
     const currentAngle = ((wheelRotation % 360) + 360) % 360;
     const correction = (targetAngle - currentAngle + 360) % 360;
     setSpinCount(nextSpin);
@@ -162,6 +217,18 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
     window.setTimeout(() => setSpinResult(nextSpin === 1 ? "lost" : "won"), 2300);
   };
   const timerLabel = `${String(Math.floor(promoSeconds / 3600)).padStart(2, "0")}:${String(Math.floor((promoSeconds % 3600) / 60)).padStart(2, "0")}:${String(promoSeconds % 60).padStart(2, "0")}`;
+
+  const checkAvailability = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.eventType || !form.eventDate) return;
+    trackFormStart();
+    trackFormAction();
+    setAvailStatus("checking");
+    const available = !bookedDates.includes(form.eventDate);
+    window.setTimeout(() => setAvailStatus(available ? "available" : "unavailable"), 400);
+    reportAvailabilityCheck(formatDateRo(form.eventDate), form.eventDate, available, form.eventType);
+    measureOaiq("availability_checked", { page_path: `/oferta/${page.slug}` });
+  };
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -189,10 +256,10 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
         <div className="max-w-6xl mx-auto px-6 py-6 flex items-center justify-between">
           <a href="#acasa" className="text-xs tracking-[0.28em] uppercase font-medium text-white">Anca Visuals</a>
           <a
-            href="#oferta"
+            href="#verifica-data"
             className="hidden sm:inline-flex items-center gap-2 text-xs tracking-wide text-white/80 hover:text-white transition-colors"
           >
-            Vezi oferta <ArrowIcon />
+            Verifică disponibilitatea <ArrowIcon />
           </a>
         </div>
       </header>
@@ -256,50 +323,286 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
         </div>
       </section>
 
-      {/* ── LIMITED PROMO ──────────────────────────────────────────── */}
-      <section className="border-b border-amber-500/20 bg-gradient-to-br from-amber-950/40 via-neutral-900 to-neutral-950 px-6 py-14 sm:py-18">
-        <div className="mx-auto max-w-4xl text-center">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.25em] text-amber-300">Ofertă pentru nunta ta</p>
-          <h2 className="promo-rainbow-text text-4xl font-semibold leading-tight sm:text-6xl">Ai șansa să câștigi fotocabina gratuit</h2>
-          <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-neutral-400">Ai 3 șanse să participi. Învârte spinnerul și vezi dacă fotocabina gratuită poate fi a ta.</p>
-          <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-400/10 px-4 py-2 text-sm font-semibold text-amber-200"><span>⏱</span> Oferta expiră în {timerLabel}</div>
-          {promoOpen && <div className="mx-auto mt-7 max-w-md rounded-2xl border border-amber-400/20 bg-neutral-950/60 p-6">
-            <div className="relative mx-auto h-64 w-56 pt-4">
-              <span className="absolute left-1/2 top-0 z-10 -translate-x-1/2 text-3xl text-white drop-shadow-[0_2px_3px_rgba(0,0,0,0.8)]" aria-hidden="true">▼</span>
-              <div aria-label="Roată promoțională" style={{ background: "conic-gradient(#8b5cf6 0deg 120deg, #374151 120deg 240deg, #22c55e 240deg 360deg)", ...(spinResult === "idle" ? {} : { transform: `rotate(${wheelRotation}deg)`, transition: spinResult === "spinning" ? "transform 2300ms cubic-bezier(0.12, 0.8, 0.18, 1)" : undefined }) }} className="relative mx-auto flex h-56 w-56 items-center justify-center overflow-hidden rounded-full border-[10px] border-white/70 shadow-2xl shadow-black/40">
-                <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 224 224" aria-hidden="true">
-                  <g textAnchor="middle" fontSize="11" fontWeight="900" letterSpacing="1" style={{ paintOrder: "stroke", stroke: "rgba(0,0,0,0.55)", strokeWidth: 3 }}>
-                    <rect x="139" y="57" width="70" height="28" rx="14" fill="rgba(0,0,0,0.28)" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" />
-                    <text x="174" y="75" fill="white">VIDEOBOOTH</text>
-                    <rect x="84" y="160" width="56" height="28" rx="14" fill="rgba(0,0,0,0.28)" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" />
-                    <text x="112" y="178" fill="white">NIMIC</text>
-                    <rect x="15" y="57" width="86" height="28" rx="14" fill="rgba(0,0,0,0.28)" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" />
-                    <text x="58" y="75" fill="white">FOTOCABINĂ</text>
-                  </g>
-                </svg>
-                <span className="rounded-full border-4 border-white/80 bg-neutral-950/80 px-3 py-2 text-3xl">{spinResult === "won" ? "🎉" : spinResult === "lost" ? "😬" : "🎁"}</span>
+      {/* ── PORTFOLIO (imediat după hero) ──────────────────────────── */}
+      {page.gallery.length > 0 && (
+        <section className="py-20 sm:py-24 px-6 max-w-6xl mx-auto">
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-10">
+            <div>
+              <p className="text-amber-200 text-xs tracking-[0.25em] uppercase mb-3">Portofoliu</p>
+              <h2 className="text-3xl font-light">Mai mult decât imagini frumoase.</h2>
+            </div>
+            <a href="#verifica-data" className="inline-flex items-center gap-2 text-sm text-white hover:text-amber-100 transition-colors">Verifică data ta <ArrowIcon /></a>
+          </div>
+          <div className="columns-2 sm:columns-3 lg:columns-4 gap-2 sm:gap-3">
+            {(galleryExpanded ? page.gallery : page.gallery.slice(0, GALLERY_INITIAL)).map((item, index) => (
+              <div key={index} className="mb-2 sm:mb-3 break-inside-avoid overflow-hidden rounded-xl">
+                <img
+                  src={item.url}
+                  alt={`Ancavisuals ${index + 1}`}
+                  loading="lazy"
+                  className="w-full object-cover hover:scale-[1.02] transition-transform duration-500"
+                />
+              </div>
+            ))}
+          </div>
+          {page.gallery.length > GALLERY_INITIAL && <button type="button" onClick={() => setGalleryExpanded((expanded) => !expanded)} className="mx-auto mt-7 block rounded-full border border-white/20 px-5 py-2.5 text-xs font-semibold tracking-[0.14em] text-white transition-colors hover:border-amber-200 hover:text-amber-100">{galleryExpanded ? "Ascunde galeria" : "Vezi galeria completă"}</button>}
+        </section>
+      )}
+
+      {/* ── ROATA SURPRIZELOR ──────────────────────────────────────── */}
+      <section className="bg-[#f6f2ea] px-6 py-16 sm:py-20 text-[#2f2a24]">
+        <div className="mx-auto max-w-lg text-center">
+          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.32em] text-[#a98d5f]">Un mic dar pentru voi</p>
+          <h2 className="font-serif text-4xl leading-tight sm:text-5xl">Învârte roata surprizelor</h2>
+          <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-[#6b6154]">Pentru amintiri și mai frumoase împreună.</p>
+
+          {promoOpen && (
+            <div className="mx-auto mt-8 rounded-[28px] border border-[#e3d8c4] bg-[#fbf8f2] p-6 shadow-[0_20px_50px_-24px_rgba(120,95,55,0.35)] sm:p-8">
+              {/* wheel */}
+              <div className="relative mx-auto h-[300px] w-[300px] max-w-full">
+                {/* pointer */}
+                <div
+                  aria-hidden="true"
+                  className="absolute left-1/2 top-1 z-20 h-0 w-0 -translate-x-1/2"
+                  style={{ borderLeft: "13px solid transparent", borderRight: "13px solid transparent", borderTop: "20px solid #c9a96e", filter: "drop-shadow(0 2px 2px rgba(0,0,0,0.18))" }}
+                />
+                {/* rotating wheel */}
+                <div
+                  aria-label="Roata surprizelor"
+                  style={{
+                    background: "conic-gradient(from -60deg, #aebd9d 0deg 120deg, #e7d0c9 120deg 240deg, #d8cbb7 240deg 360deg)",
+                    transform: `rotate(${wheelRotation}deg)`,
+                    transition: spinResult === "spinning" ? "transform 2300ms cubic-bezier(0.12, 0.8, 0.18, 1)" : "none",
+                  }}
+                  className="absolute inset-2 overflow-hidden rounded-full border-[6px] border-white shadow-[inset_0_0_0_2px_rgba(255,255,255,0.5),0_16px_40px_-16px_rgba(90,70,40,0.5)]"
+                >
+                  <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 240 240" aria-hidden="true">
+                    {/* dividers */}
+                    <g stroke="#fbf8f2" strokeWidth="3">
+                      <line x1="120" y1="120" x2="120" y2="6" transform="rotate(60 120 120)" />
+                      <line x1="120" y1="120" x2="120" y2="6" transform="rotate(180 120 120)" />
+                      <line x1="120" y1="120" x2="120" y2="6" transform="rotate(300 120 120)" />
+                    </g>
+                    <g fill="#3a352e" stroke="#3a352e" strokeLinecap="round" strokeLinejoin="round">
+                      {/* FOTOCABINĂ GRATUITĂ — top */}
+                      <g transform="translate(120 40)" fill="none" strokeWidth="2.4">
+                        <rect x="-13" y="-6" width="26" height="18" rx="3" />
+                        <circle cx="0" cy="3" r="5.5" />
+                        <path d="M-6 -6 l2 -4 h8 l2 4" />
+                        <path d="M9 -10 l2 -3 M12 -8 l3 -1 M11 -4 l3 1" strokeWidth="1.8" />
+                      </g>
+                      <text x="120" y="66" textAnchor="middle" fontSize="12" fontWeight="700" letterSpacing="0.4" stroke="none">FOTOCABINĂ</text>
+                      <text x="120" y="80" textAnchor="middle" fontSize="12" fontWeight="700" letterSpacing="0.4" stroke="none">GRATUITĂ</text>
+
+                      {/* VIDEOBOOTH 360 — bottom right */}
+                      <g transform="translate(168 138)" fill="none" strokeWidth="2.2">
+                        <rect x="-7" y="-9" width="14" height="12" rx="2.5" />
+                        <circle cx="0" cy="-3" r="3.2" />
+                        <path d="M-13 4 a13 6 0 0 0 26 0" />
+                        <path d="M-13 4 l3 -2 M-13 4 l1 3" strokeWidth="1.8" />
+                        <path d="M13 4 l-3 -2 M13 4 l-1 3" strokeWidth="1.8" />
+                      </g>
+                      <text x="168" y="162" textAnchor="middle" fontSize="11" fontWeight="700" letterSpacing="0.3" stroke="none">VIDEOBOOTH</text>
+                      <text x="168" y="176" textAnchor="middle" fontSize="11" fontWeight="700" letterSpacing="0.3" stroke="none">360</text>
+
+                      {/* MAI ÎNCEARCĂ — bottom left */}
+                      <g transform="translate(72 138)" fill="none" strokeWidth="2.4">
+                        <path d="M8 -3 a9 9 0 1 0 2 7" />
+                        <path d="M8 -9 v6 h-6" />
+                      </g>
+                      <text x="72" y="162" textAnchor="middle" fontSize="11.5" fontWeight="700" letterSpacing="0.3" stroke="none">MAI</text>
+                      <text x="72" y="176" textAnchor="middle" fontSize="11.5" fontWeight="700" letterSpacing="0.3" stroke="none">ÎNCEARCĂ</text>
+                    </g>
+                  </svg>
+                </div>
+                {/* centre spin button (does not rotate) */}
+                <button
+                  type="button"
+                  onClick={spinPromo}
+                  disabled={spinCount >= 3 || promoSeconds <= 0 || spinResult === "spinning" || spinResult === "won"}
+                  aria-label="Învârte roata"
+                  className="absolute left-1/2 top-1/2 z-10 h-[86px] w-[86px] -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-white bg-[#2b2b2b] text-[11px] font-bold uppercase tracking-[0.18em] text-white shadow-[0_10px_24px_-8px_rgba(0,0,0,0.55)] transition-transform hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:scale-100"
+                >
+                  {spinResult === "spinning" ? "…" : "ÎNVÂRTE"}
+                </button>
+              </div>
+
+              {/* result / hint */}
+              {spinResult === "won" ? (
+                <div className="mt-6 rounded-2xl border border-[#e3d8c4] p-5 sm:p-6">
+                  <p className="mb-3 text-center text-lg" aria-hidden="true">🌿</p>
+                  <p className="font-serif text-2xl leading-snug text-[#2f2a24] sm:text-3xl">Ai câștigat fotocabina gratuită!</p>
+                  <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-[#6b6154]">Menționează acest câștig când ne trimiți cererea de disponibilitate.</p>
+                </div>
+              ) : (
+                <p className="mt-6 text-sm text-[#6b6154]">
+                  {spinResult === "spinning"
+                    ? "Roata se oprește…"
+                    : spinCount === 0
+                      ? "Apasă ÎNVÂRTE și vezi ce câștigi."
+                      : `Șanse rămase: ${3 - spinCount}`}
+                </p>
+              )}
+
+              <div className="mt-6 flex items-center justify-center gap-2 border-t border-[#e9e0d0] pt-5 text-xs font-medium text-[#8a7c67]">
+                <span aria-hidden="true">🕐</span> Oferta expiră în {timerLabel}
               </div>
             </div>
-            {spinResult === "won" ? <div className="mt-5 text-center"><div className="mb-3 text-2xl" aria-hidden="true">🎊 ✨ 🎉 ✨ 🎊</div><p className="text-xl font-semibold leading-relaxed text-green-300">Ai câștigat fotocabina gratuită!</p><p className="mt-2 text-sm leading-relaxed text-neutral-400">Menționează acest câștig când ne trimiți cererea de disponibilitate.</p></div> : <><p className="mt-5 text-sm text-neutral-300">{spinResult === "spinning" ? "Spinnerul se oprește…" : `Șanse rămase: ${3 - spinCount}`}</p><button type="button" onClick={spinPromo} disabled={spinCount >= 3 || promoSeconds <= 0 || spinResult === "spinning"} className="mt-4 rounded-xl bg-amber-400 px-7 py-3.5 text-sm font-bold text-neutral-950 transition-colors hover:bg-amber-300 disabled:cursor-not-allowed disabled:bg-neutral-700 disabled:text-neutral-500">{spinResult === "spinning" ? "Se învârte…" : spinCount === 0 ? "Învârte spinnerul" : "Mai încearcă o dată"}</button><p className="mt-3 text-[11px] text-neutral-600">Oferta este valabilă în limita disponibilității și se confirmă împreună cu data evenimentului.</p></>}
-          </div>}
+          )}
         </div>
       </section>
 
-      {/* ── EARLY CONTACT ──────────────────────────────────────────── */}
+      {/* ── AVAILABILITY CHECK ─────────────────────────────────────── */}
       <section id="verifica-data" className="scroll-mt-6 border-b border-white/10 bg-neutral-900 px-6 py-16 sm:py-20">
-        <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(360px,480px)] lg:items-center">
-          <div><p className="mb-3 text-xs uppercase tracking-[0.25em] text-amber-200">Verifică disponibilitatea</p><h2 className="max-w-xl text-3xl font-light leading-tight sm:text-4xl">Spune-ne data și localitatea evenimentului.</h2><p className="mt-4 max-w-xl text-sm leading-relaxed text-neutral-400">Îți confirmăm disponibilitatea și discutăm pachetul potrivit pentru voi.</p></div>
-          {formStatus === "sent" ? <div className="rounded-2xl border border-green-700/40 bg-green-900/30 p-8 text-center"><p className="mb-2 text-3xl">✓</p><p className="font-medium text-green-300">Cererea a fost trimisă!</p><p className="mt-1 text-sm text-neutral-400">Te vom contacta în curând.</p></div> : <form onSubmit={handleFormSubmit} onFocus={trackFormStart} onChange={trackFormAction} className="space-y-3 rounded-2xl border border-neutral-800 bg-neutral-950/70 p-5 sm:p-6">
-            <select required value={form.eventType} onChange={(e) => setForm((current) => ({ ...current, eventType: e.target.value }))} className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-3.5 text-sm text-white outline-none focus:border-amber-500"><option value="">Tipul evenimentului *</option><option>Nuntă</option><option>Botez</option><option>Majorat</option><option>Alt eveniment</option></select>
-            <input type="date" required value={form.eventDate} onChange={(e) => setForm((current) => ({ ...current, eventDate: e.target.value }))} className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-3.5 text-sm text-white outline-none focus:border-amber-500" />
-            <input type="text" required placeholder="Localitatea evenimentului *" value={form.location} onChange={(e) => setForm((current) => ({ ...current, location: e.target.value }))} className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-3.5 text-sm text-white placeholder-neutral-500 outline-none focus:border-amber-500" />
-            <input type="text" required placeholder="Numele tău *" value={form.name} onChange={(e) => setForm((current) => ({ ...current, name: e.target.value }))} className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-3.5 text-sm text-white placeholder-neutral-500 outline-none focus:border-amber-500" />
-            <input type="tel" required placeholder="Telefon sau WhatsApp *" value={form.phone} onChange={(e) => setForm((current) => ({ ...current, phone: e.target.value }))} className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-3.5 text-sm text-white placeholder-neutral-500 outline-none focus:border-amber-500" />
-            {formStatus === "error" && <p className="text-sm text-red-400">A apărut o eroare. Încearcă din nou.</p>}
-            <button type="submit" disabled={formStatus === "sending"} className="w-full rounded-xl bg-amber-600 py-4 text-sm font-semibold text-white transition-colors hover:bg-amber-500 disabled:bg-neutral-700">{formStatus === "sending" ? "Se verifică…" : "Verifică disponibilitatea"}</button>
-          </form>}
+        <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(340px,440px)] lg:items-center">
+          <div>
+            <p className="mb-3 text-xs uppercase tracking-[0.25em] text-amber-200">Verifică disponibilitatea</p>
+            <h2 className="max-w-xl text-3xl font-light leading-tight sm:text-4xl">Spune-ne tipul evenimentului și data.</h2>
+            <p className="mt-4 max-w-xl text-sm leading-relaxed text-neutral-400">Îți spunem pe loc dacă suntem liberi. Fără să lași date de contact.</p>
+          </div>
+
+          <div className="rounded-2xl border border-neutral-800 bg-neutral-950/70 p-5 sm:p-6">
+            <form onSubmit={checkAvailability} className="space-y-3">
+              <select
+                value={form.eventType}
+                onChange={(e) => { setForm((c) => ({ ...c, eventType: e.target.value })); setAvailStatus("idle"); }}
+                className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-3.5 text-sm text-white outline-none focus:border-amber-500"
+              >
+                <option>Nuntă</option>
+                <option>Botez</option>
+                <option>Majorat</option>
+                <option>Cununie civilă</option>
+                <option>Alt eveniment</option>
+              </select>
+              <div className="grid grid-cols-[80px_1fr_100px] gap-2">
+                <select
+                  aria-label="Ziua"
+                  value={dateParts.day}
+                  onChange={(e) => setDatePart({ day: Number(e.target.value) })}
+                  className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-3 py-3.5 text-sm text-white outline-none focus:border-amber-500"
+                >
+                  {Array.from({ length: daysInMonth(dateParts.year, dateParts.month) }, (_, i) => i + 1).map((d) => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+                <select
+                  aria-label="Luna"
+                  value={dateParts.month}
+                  onChange={(e) => setDatePart({ month: Number(e.target.value) })}
+                  className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-3 py-3.5 text-sm text-white outline-none focus:border-amber-500"
+                >
+                  {MONTHS_RO_CAP.map((label, index) => (
+                    <option key={label} value={index}>{label}</option>
+                  ))}
+                </select>
+                <select
+                  aria-label="Anul"
+                  value={dateParts.year}
+                  onChange={(e) => setDatePart({ year: Number(e.target.value) })}
+                  className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-3 py-3.5 text-sm text-white outline-none focus:border-amber-500"
+                >
+                  {Array.from({ length: 4 }, (_, i) => new Date().getFullYear() + i).map((y) => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </div>
+              <button
+                type="submit"
+                disabled={availStatus === "checking" || !form.eventDate}
+                className="w-full rounded-xl bg-amber-600 py-4 text-sm font-semibold text-white transition-colors hover:bg-amber-500 disabled:bg-neutral-700"
+              >
+                {availStatus === "checking" ? "Se verifică…" : "Verifică disponibilitatea"}
+              </button>
+            </form>
+
+            {availStatus === "available" && formStatus !== "sent" && (
+              <div className="mt-4 rounded-xl border border-green-700/40 bg-green-900/25 p-4">
+                <p className="text-sm font-medium text-green-300">🎉 Suntem disponibili pe {formatDateRo(form.eventDate)}!</p>
+                <p className="mt-1 text-xs text-neutral-400">Alege cum continuăm:</p>
+                <div className="mt-3 flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setLeaveNumber((v) => !v); trackFormAction(); }}
+                    className="rounded-xl border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-200 transition-colors hover:bg-amber-500/20"
+                  >
+                    Lasă-ne numărul — te sunăm noi
+                  </button>
+                  <a
+                    href={whatsappLink}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={() => trackClick("click_whatsapp", "avail_ok")}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-500 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-green-400"
+                  >
+                    <WhatsAppIcon /> Scrie-ne pe WhatsApp
+                  </a>
+                </div>
+              </div>
+            )}
+
+            {availStatus === "unavailable" && formStatus !== "sent" && (
+              <div className="mt-4 rounded-xl border border-amber-700/40 bg-amber-900/20 p-4">
+                <p className="text-sm font-medium text-amber-200">Data {formatDateRo(form.eventDate)} pare deja rezervată.</p>
+                <p className="mt-1 text-xs text-neutral-400">Uneori se eliberează sau găsim o soluție. Lasă-ne numărul sau scrie-ne.</p>
+                <div className="mt-3 flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setLeaveNumber((v) => !v); trackFormAction(); }}
+                    className="rounded-xl border border-neutral-600 bg-neutral-800 px-4 py-3 text-sm font-semibold text-white transition-colors hover:border-neutral-400"
+                  >
+                    Lasă-ne numărul — revenim dacă se poate
+                  </button>
+                  <a
+                    href={whatsappLink}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={() => trackClick("click_whatsapp", "avail_no")}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-500 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-green-400"
+                  >
+                    <WhatsAppIcon /> Scrie-ne pe WhatsApp
+                  </a>
+                </div>
+              </div>
+            )}
+
+            {leaveNumber && formStatus !== "sent" && (
+              <form onSubmit={handleFormSubmit} onFocus={trackFormStart} className="mt-3 space-y-2 border-t border-neutral-800 pt-3">
+                <input
+                  type="text"
+                  required
+                  placeholder="Numele tău"
+                  value={form.name}
+                  onChange={(e) => setForm((c) => ({ ...c, name: e.target.value }))}
+                  className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-3 text-sm text-white placeholder-neutral-500 outline-none focus:border-amber-500"
+                />
+                <input
+                  type="tel"
+                  required
+                  placeholder="Telefon sau WhatsApp"
+                  value={form.phone}
+                  onChange={(e) => setForm((c) => ({ ...c, phone: e.target.value }))}
+                  className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-3 text-sm text-white placeholder-neutral-500 outline-none focus:border-amber-500"
+                />
+                {formStatus === "error" && <p className="text-sm text-red-400">A apărut o eroare. Încearcă din nou.</p>}
+                <button
+                  type="submit"
+                  disabled={formStatus === "sending" || !form.name || !form.phone}
+                  className="w-full rounded-xl bg-amber-600 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-amber-500 disabled:bg-neutral-700"
+                >
+                  {formStatus === "sending" ? "Se trimite…" : "Trimite numărul"}
+                </button>
+              </form>
+            )}
+
+            {formStatus === "sent" && (
+              <div className="mt-4 rounded-xl border border-green-700/40 bg-green-900/30 p-6 text-center">
+                <p className="mb-1 text-2xl">✓</p>
+                <p className="text-sm font-medium text-green-300">Am primit numărul tău!</p>
+                <p className="mt-1 text-xs text-neutral-400">Te contactăm în curând pentru {formatDateRo(form.eventDate)}.</p>
+              </div>
+            )}
+          </div>
         </div>
-        <div className="mx-auto mt-6 flex max-w-6xl flex-col items-center justify-center gap-3 sm:flex-row"><span className="text-xs text-neutral-500">Preferi să vorbești direct?</span><a href={whatsappLink} target="_blank" rel="noreferrer" onClick={() => trackClick("click_whatsapp", "early_form")} className="inline-flex items-center gap-2 rounded-xl bg-green-500 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-green-400"><WhatsAppIcon /> Scrie-ne pe WhatsApp</a></div>
       </section>
 
       {/* ── JOURNEY ────────────────────────────────────────────────── */}
@@ -320,32 +623,6 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
           </div>
         </div>
       </section>
-
-      {/* ── GALLERY ────────────────────────────────────────────────── */}
-      {page.gallery.length > 0 && (
-        <section className="py-24 px-6 max-w-6xl mx-auto">
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-10">
-            <div>
-              <p className="text-amber-200 text-xs tracking-[0.25em] uppercase mb-3">Portofoliu</p>
-              <h2 className="text-3xl font-light">Mai mult decât imagini frumoase.</h2>
-            </div>
-            <a href="#oferta" className="inline-flex items-center gap-2 text-sm text-white hover:text-amber-100 transition-colors">Vezi cum lucrăm <ArrowIcon /></a>
-          </div>
-          <div className="columns-2 sm:columns-3 lg:columns-4 gap-2 sm:gap-3">
-            {(galleryExpanded ? page.gallery : page.gallery.slice(0, 8)).map((item, index) => (
-              <div key={index} className="mb-2 sm:mb-3 break-inside-avoid overflow-hidden rounded-xl">
-                <img
-                  src={item.url}
-                  alt={`Ancavisuals ${index + 1}`}
-                  loading="lazy"
-                  className="w-full object-cover hover:scale-[1.02] transition-transform duration-500"
-                />
-              </div>
-            ))}
-          </div>
-          {page.gallery.length > 8 && <button type="button" onClick={() => setGalleryExpanded((expanded) => !expanded)} className="mx-auto mt-7 block rounded-full border border-white/20 px-5 py-2.5 text-xs font-semibold tracking-[0.14em] text-white transition-colors hover:border-amber-200 hover:text-amber-100">{galleryExpanded ? "Ascunde galeria" : "Vezi galeria completă"}</button>}
-        </section>
-      )}
 
       {/* ── PACKAGES ───────────────────────────────────────────────── */}
       {page.packages.length > 0 && (
@@ -417,58 +694,44 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
         </section>
       )}
 
-      {/* ── CONTACT FORM ───────────────────────────────────────────── */}
+      {/* ── FINAL CTA ──────────────────────────────────────────────── */}
       <section id="oferta" className="py-24 px-6 bg-neutral-900 border-t border-neutral-800 scroll-mt-6">
-        <div className="max-w-xl mx-auto">
-          <p className="text-amber-200 text-xs tracking-[0.25em] uppercase mb-3 text-center">Ultimul pas</p>
-          <h2 className="text-3xl sm:text-4xl font-light text-white mb-3 text-center">Spune-ne când are loc povestea voastră.</h2>
-          <p className="text-neutral-400 text-sm mb-8 text-center leading-relaxed">Lasă-ne datele de bază. Verificăm disponibilitatea, apoi discutăm relaxat despre ce vă doriți.</p>
+        <div className="max-w-xl mx-auto text-center">
+          <p className="text-amber-200 text-xs tracking-[0.25em] uppercase mb-3">Următorul pas</p>
+          <h2 className="text-3xl sm:text-4xl font-light text-white mb-3">Hai să vedem dacă data ta e liberă.</h2>
+          <p className="text-neutral-400 text-sm mb-8 leading-relaxed">Verifică disponibilitatea în 5 secunde sau scrie-ne direct.</p>
 
-          {formStatus === "sent" ? (
-            <div className="bg-green-900/30 border border-green-700/40 rounded-2xl p-8 text-center">
-              <p className="text-3xl mb-3">✓</p>
-              <p className="text-green-300 font-medium mb-1">Cererea a fost trimisă!</p>
-              <p className="text-neutral-400 text-sm">Te vom contacta în curând.</p>
-            </div>
-          ) : (
-            <form onSubmit={handleFormSubmit} onFocus={trackFormStart} onChange={trackFormAction} className="space-y-4">
-              <input type="text" placeholder="Numele tău *" required value={form.name}
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                className="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-3.5 text-white placeholder-neutral-500 text-sm outline-none focus:border-amber-500 transition-colors"
-              />
-              <input type="tel" placeholder="Telefon *" required value={form.phone}
-                onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-                className="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-3.5 text-white placeholder-neutral-500 text-sm outline-none focus:border-amber-500 transition-colors"
-              />
-              <input type="date" value={form.eventDate}
-                onChange={(e) => setForm((f) => ({ ...f, eventDate: e.target.value }))}
-                className="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-3.5 text-white text-sm outline-none focus:border-amber-500 transition-colors"
-              />
-              {formStatus === "error" && <p className="text-red-400 text-sm">A apărut o eroare. Încearcă din nou.</p>}
-              <button type="submit" disabled={formStatus === "sending" || !form.name || !form.phone}
-                className="w-full bg-amber-600 hover:bg-amber-500 disabled:bg-neutral-700 disabled:text-neutral-500 text-white font-semibold py-4 rounded-xl text-sm transition-all"
-              >
-                {formStatus === "sending" ? "Se trimite..." : "Trimite cererea"}
-              </button>
-            </form>
-          )}
-
-          <div className="flex flex-col sm:flex-row gap-3 mt-6">
-            <a href={whatsappLink} target="_blank" rel="noreferrer" onClick={() => trackClick("click_whatsapp", "final_form")}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <a href="#verifica-data"
+              className="flex-1 inline-flex items-center justify-center gap-2.5 bg-amber-600 hover:bg-amber-500 text-white font-semibold px-6 py-3.5 rounded-xl text-sm transition-all"
+            >
+              Verifică disponibilitatea <ArrowIcon />
+            </a>
+            <a href={whatsappLink} target="_blank" rel="noreferrer" onClick={() => trackClick("click_whatsapp", "final_cta")}
               className="flex-1 inline-flex items-center justify-center gap-2.5 bg-green-500 hover:bg-green-400 text-white font-semibold px-6 py-3.5 rounded-xl text-sm transition-all"
             >
               <WhatsAppIcon />
               {page.ctaText || "Scrie pe WhatsApp"}
             </a>
+          </div>
+          <div className="mt-3 flex flex-col sm:flex-row justify-center gap-3">
             <PhoneNumberReveal
               phone={page.phoneNumber}
               buttonLabel="Sună acum"
               revealedPrefix="Sună acum — "
-              context={`campanie ${page.slug} · formular final`}
-              onRevealed={() => trackClick("click_phone", "final_form")}
-              className="flex-1 inline-flex items-center justify-center gap-2.5 bg-neutral-800 hover:bg-neutral-700 text-white font-medium px-6 py-3.5 rounded-xl text-sm border border-neutral-700 transition-all"
+              context={`campanie ${page.slug} · CTA final`}
+              onRevealed={() => trackClick("click_phone", "final_cta")}
+              className="inline-flex items-center justify-center gap-2.5 bg-neutral-800 hover:bg-neutral-700 text-white font-medium px-6 py-3.5 rounded-xl text-sm border border-neutral-700 transition-all"
               icon={<PhoneIcon />}
             />
+            <a
+              href="https://instagram.com/ancavisuals"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center justify-center gap-2.5 rounded-xl border border-neutral-700 bg-neutral-800 px-6 py-3.5 text-sm font-medium text-white transition-all hover:bg-neutral-700"
+            >
+              <InstagramIcon /> Vezi-ne pe Instagram
+            </a>
           </div>
         </div>
       </section>
