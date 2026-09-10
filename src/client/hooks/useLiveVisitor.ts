@@ -220,10 +220,15 @@ export function useLiveVisitor() {
     document.addEventListener("click", onClick, true);
 
     // ── Form interaction (classifies the form; never reads values) ────────
+    // A form marked [data-live-track="off"] reports its own semantic events
+    // (with real field data where relevant) — the generic listener skips it so
+    // we never emit a value-less "form_submitted" alongside the page's own one.
     const seenForms = new WeakSet<HTMLFormElement>();
+    const isSelfReported = (form: HTMLFormElement | null) =>
+      form?.dataset?.liveTrack === "off";
     const onFocusIn = (e: FocusEvent) => {
       const form = (e.target as HTMLElement | null)?.closest?.("form") as HTMLFormElement | null;
-      if (!form || seenForms.has(form)) return;
+      if (!form || seenForms.has(form) || isSelfReported(form)) return;
       seenForms.add(form);
       const c = classifyForm(form, window.location.pathname);
       send("form_started", {
@@ -234,6 +239,7 @@ export function useLiveVisitor() {
     };
     const onSubmit = (e: Event) => {
       const form = e.target as HTMLFormElement | null;
+      if (form && form.tagName === "FORM" && isSelfReported(form)) return;
       const c = classifyForm(form && form.tagName === "FORM" ? form : null, window.location.pathname);
       send("form_submitted", { priority: c.priority, label: c.label, meta: { kind: c.kind } });
     };

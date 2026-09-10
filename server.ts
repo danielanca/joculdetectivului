@@ -271,6 +271,15 @@ async function createServer() {
     render = prodModule.render;
   }
 
+  // --- Legacy path redirects ---
+  // The offer pages live under the singular /oferta/:slug. Links that use the
+  // plural /oferte/:slug (e.g. shared by mistake) get permanently redirected.
+  app.get(/^\/oferte(\/.*)?$/, (req: Request, res: Response) => {
+    const slug = req.path.replace(/^\/oferte\/?/, "").replace(/\/+$/, "");
+    const query = req.originalUrl.slice(req.path.length); // preserves ?gclid=… etc.
+    res.redirect(301, slug ? `/oferta/${slug}${query}` : `/${query}`);
+  });
+
   // --- SSR handler ---
   app.use('*', async (req: Request, res: Response, next: NextFunction) => {
     const url = req.originalUrl;

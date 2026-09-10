@@ -131,7 +131,12 @@ export function formatEvent(ev: LiveEvent, s: LiveSession): string {
       const kind = ev.meta?.kind;
       if (kind === "delivery") return `📦 A completat adresa de livrare — vrea albumul fizic.`;
       if (kind === "subscribe") return `📧 S-a abonat — vrea notificare când sunt gata pozele.`;
-      if (kind === "contact") return `🎯 Un client a trimis formularul de contact — vrea să-l suni!`;
+      if (kind === "contact") {
+        const who = [ev.meta?.name, ev.meta?.phone].filter(Boolean).join(" · ");
+        return who
+          ? `🎯 Un client a trimis formularul de contact — sună-l: ${who}`
+          : `🎯 Un client a trimis formularul de contact — vrea să-l suni!`;
+      }
       return `✅ A trimis un formular.`;
     }
     case "visitor_idle":

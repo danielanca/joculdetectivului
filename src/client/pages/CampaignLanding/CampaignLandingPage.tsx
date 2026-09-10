@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { measureOaiq } from "../../utils/oaiq";
 import { getCookie } from "../../utils/functions";
-import { reportAvailabilityCheck } from "../../utils/liveEvent";
+import { reportAvailabilityCheck, sendLiveEvent } from "../../utils/liveEvent";
 import PhoneNumberReveal from "../../components/PhoneReveal/PhoneNumberReveal";
 
 const MONTHS_RO = ["ianuarie", "februarie", "martie", "aprilie", "mai", "iunie", "iulie", "august", "septembrie", "octombrie", "noiembrie", "decembrie"];
@@ -241,7 +241,22 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
         body: JSON.stringify(form),
       });
       setFormStatus(res.ok ? "sent" : "error");
-      if (res.ok) measureOaiq("lead_created", { type: "customer_action", page_path: `/oferta/${page.slug}` });
+      if (res.ok) {
+        measureOaiq("lead_created", { type: "customer_action", page_path: `/oferta/${page.slug}` });
+        // Panel live only — the lead email is sent by /api/campaign/:slug/contact.
+        sendLiveEvent("form_submitted", {
+          priority: "critical",
+          label: "🎯 Un client a trimis formularul de contact — vrea să-l suni",
+          meta: {
+            kind: "contact",
+            name: form.name.trim(),
+            phone: form.phone.trim(),
+            eventType: form.eventType,
+            eventDate: form.eventDate,
+            emailedElsewhere: true,
+          },
+        });
+      }
     } catch {
       setFormStatus("error");
     }
@@ -462,7 +477,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
           </div>
 
           <div className="rounded-2xl border border-neutral-800 bg-neutral-950/70 p-5 sm:p-6">
-            <form onSubmit={checkAvailability} className="space-y-3">
+            <form onSubmit={checkAvailability} data-live-track="off" className="space-y-3">
               <select
                 value={form.eventType}
                 onChange={(e) => { setForm((c) => ({ ...c, eventType: e.target.value })); setAvailStatus("idle"); }}
@@ -566,7 +581,7 @@ export default function CampaignLandingPage({ page }: CampaignLandingPageProps) 
             )}
 
             {leaveNumber && formStatus !== "sent" && (
-              <form onSubmit={handleFormSubmit} onFocus={trackFormStart} className="mt-3 space-y-2 border-t border-neutral-800 pt-3">
+              <form onSubmit={handleFormSubmit} onFocus={trackFormStart} data-live-track="off" className="mt-3 space-y-2 border-t border-neutral-800 pt-3">
                 <input
                   type="text"
                   required

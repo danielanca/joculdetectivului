@@ -550,6 +550,65 @@ router.post("/events/:id/create-album", async (req: Request, res: Response) => {
   }
 });
 
+const ALBUM_PHOTO_EXT = /\.(jpe?g|png)$/i;
+
+const sanitizePhotoName = (raw: string): string =>
+  raw
+    .replace(/^.*[/\\]/, "")            // strip any path
+    .replace(/[^a-zA-Z0-9._-]/g, "_")   // keep only safe chars
+    .replace(/_{2,}/g, "_")
+    .slice(-128);
+
+// POST /api/admin/events/:id/upload-photo?name=<filename>
+// Streaming pass-through: originalul curge direct browser → server → Bunny {albumSlug}/photos/,
+// fără să fie ținut în RAM. Previzualizarea WebP se generează separat cu process-album.
+router.post("/events/:id/upload-photo", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const rawName = String((req.query as { name?: string }).name ?? "").trim();
+    if (!ALBUM_PHOTO_EXT.test(rawName)) {
+      return res.status(400).json({ error: "Doar fișiere JPG sau PNG." });
+    }
+    const safeName = sanitizePhotoName(rawName);
+    if (!ALBUM_PHOTO_EXT.test(safeName)) {
+      return res.status(400).json({ error: "Nume de fișier invalid." });
+    }
+
+    const db = firestore();
+    const doc = await db.collection("adminEvents").doc(id).get();
+    if (!doc.exists) return res.status(404).json({ error: "Evenimentul nu a fost găsit." });
+
+    const slug = doc.data()?.albumSlug as string | undefined;
+    if (!slug) return res.status(400).json({ error: "Evenimentul nu are un album slug setat." });
+
+    const headers: Record<string, string> = {
+      [BUNNY_ACCESS_KEY_HEADER]: getBunnyStorageKey(),
+      "Content-Type": "application/octet-stream",
+    };
+    const contentLength = req.headers["content-length"];
+    if (contentLength) headers["Content-Length"] = String(contentLength);
+
+    const bunnyRes = await nodeFetch(buildBunnyStorageUrl(slug, BUNNY_PHOTOS_FOLDER, safeName), {
+      method: "PUT",
+      headers,
+      body: req,
+      agent: bunnyAgent,
+    });
+
+    if (!bunnyRes.ok) {
+      const detail = await bunnyRes.text().catch(() => "");
+      console.error(`[adminEvents] upload-photo Bunny ${bunnyRes.status}: ${detail}`);
+      return res.status(502).json({ error: `Bunny a respins upload-ul (${bunnyRes.status}).` });
+    }
+
+    invalidateAlbumCache(slug);
+    res.json({ ok: true, name: safeName });
+  } catch (error) {
+    console.error("[adminEvents] upload-photo failed:", error);
+    res.status(500).json({ error: String(error) });
+  }
+});
+
 // POST /api/admin/events/:id/photobooth-folder — ensure {albumSlug}/photobooth/ exists in Bunny
 router.post("/events/:id/photobooth-folder", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {

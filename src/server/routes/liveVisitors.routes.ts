@@ -37,13 +37,25 @@ const CRITICAL_LABELS: Record<string, string> = {
 };
 
 // Events that also trigger an email (so the owner is notified with the panel closed).
+// `form_submitted` is intentionally NOT here: the generic client-side submit
+// listener fires it for any form and carries no field values, so it would only
+// ever be a value-less "someone submitted a form" alert. It still shows in the
+// live panel and the activity feed. Real leads are emailed by their own routes
+// (/api/campaign/:slug/contact, /triggerEvent) — see `formSubmittedShouldEmail`
+// for the delivery/subscribe exceptions that have no dedicated route.
 const EMAIL_EVENTS: Record<string, string> = {
   whatsapp_clicked: "💬 Click WhatsApp",
   phone_revealed: "📞 Număr de telefon afișat",
   contact_clicked: "🖱️ Click Contactează-ne",
-  form_submitted: "✅ Formular trimis",
   availability_checked: "📅 A verificat disponibilitatea",
 };
+
+// `form_submitted` still emails for these intents — they have no other route
+// that notifies the owner. `contact`/`other` do not: a contact lead is emailed
+// by the form's own endpoint, and `other` is too vague to be worth an email.
+function formSubmittedShouldEmail(kind: string): boolean {
+  return kind === "delivery" || kind === "subscribe";
+}
 // `form_submitted` is one event but three very different intentions — title by `meta.kind`.
 const FORM_KIND_TITLE: Record<string, string> = {
   contact: "🎯 Un client vrea să fie contactat",
@@ -162,13 +174,18 @@ liveVisitorsPublicRouter.post("/live/event", async (req: Request, res: Response)
     const formKind = body.event === "form_submitted" ? String(meta.kind ?? "other") : "";
     const emailDiscriminator = checkedDate || formKind;
 
+    const leadName = body.event === "form_submitted" ? String(meta.name ?? "").trim() : "";
+    const leadPhone = body.event === "form_submitted" ? String(meta.phone ?? "").trim() : "";
+    const leadContact = [leadName, leadPhone].filter(Boolean).join(" · ");
+
     if (LOGGED_EVENTS.has(body.event)) {
+      const geoLabel = [session.city, session.country].filter(Boolean).join(", ") || "locație necunoscută";
       logActivity({
         type: "lead",
         title: (formKind
           ? (FORM_KIND_TITLE[formKind] ?? FORM_KIND_TITLE.other)
           : (CRITICAL_LABELS[body.event] ?? EMAIL_EVENTS[body.event] ?? body.event)) + (checkedDate ? `: ${checkedDate}` : ""),
-        description: `${[session.city, session.country].filter(Boolean).join(", ") || "locație necunoscută"} · ${event.page}${session.isGoogleAds ? " · Google Ads" : ""}`,
+        description: `${leadContact ? `${leadContact} · ` : ""}${geoLabel} · ${event.page}${session.isGoogleAds ? " · Google Ads" : ""}`,
         metadata: {
           event: body.event,
           page: event.page,
@@ -176,12 +193,17 @@ liveVisitorsPublicRouter.post("/live/event", async (req: Request, res: Response)
           visitorNumber: String(session.visitorNumber),
           ...(checkedDate ? { checkedDate, available: String(meta.available ?? "") } : {}),
           ...(formKind ? { formKind } : {}),
+          ...(leadName ? { leadName } : {}),
+          ...(leadPhone ? { leadPhone } : {}),
         },
         emailSent: false,
       }).catch(() => {});
     }
 
-    if (EMAIL_EVENTS[body.event] && shouldEmailEvent(body.sessionId, body.event, emailDiscriminator)) {
+    const wantEmail =
+      Boolean(EMAIL_EVENTS[body.event]) ||
+      (body.event === "form_submitted" && formSubmittedShouldEmail(formKind));
+    if (wantEmail && shouldEmailEvent(body.sessionId, body.event, emailDiscriminator)) {
       sendEventEmail(body.event, session, {
         event: body.event,
         page: event.page,

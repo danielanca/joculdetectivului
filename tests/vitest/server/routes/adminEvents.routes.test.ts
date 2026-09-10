@@ -195,6 +195,7 @@ async function loadRouter() {
     postBackupSubmit: getHandler("post", "/events/:id/post-event-backup/submit"),
     postExtractFromImage: getHandler("post", "/leads/extract-from-image"),
     postCreateAlbum: getHandler("post", "/events/:id/create-album"),
+    postUploadPhoto: getHandler("post", "/events/:id/upload-photo"),
     postPhotoboothFolder: getHandler("post", "/events/:id/photobooth-folder"),
     postPhotoboothUpload: getHandler("post", "/events/:id/photobooth-upload"),
     getPhotoboothFiles: getHandler("get", "/events/:id/photobooth-files"),
@@ -817,6 +818,66 @@ describe("adminEvents routes", () => {
       const res = createMockResponse();
       await postCreateAlbum({ params: { id: "ev-1" }, body: { slug: "nunta-test-2026" } }, res);
       expect(res.status).toHaveBeenCalledWith(500);
+    });
+  });
+
+  // ───────────────── POST /events/:id/upload-photo ─────────────────
+  describe("POST /events/:id/upload-photo", () => {
+    const makeReq = (over: Record<string, unknown> = {}) => ({
+      params: { id: "ev-1" },
+      query: { name: "Picture-0001.jpg" },
+      headers: { "content-length": "1024" },
+      ...over,
+    });
+
+    test("returns 400 when name is missing", async () => {
+      const { postUploadPhoto } = await loadRouter();
+      const res = createMockResponse();
+      await postUploadPhoto(makeReq({ query: {} }), res);
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
+
+    test("returns 400 for a non-image extension", async () => {
+      const { postUploadPhoto } = await loadRouter();
+      const res = createMockResponse();
+      await postUploadPhoto(makeReq({ query: { name: "notes.txt" } }), res);
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
+
+    test("returns 404 when the event does not exist", async () => {
+      const { postUploadPhoto, docGetMock } = await loadRouter();
+      docGetMock.mockResolvedValueOnce({ exists: false });
+      const res = createMockResponse();
+      await postUploadPhoto(makeReq(), res);
+      expect(res.status).toHaveBeenCalledWith(404);
+    });
+
+    test("returns 400 when the event has no albumSlug", async () => {
+      const { postUploadPhoto, docGetMock } = await loadRouter();
+      docGetMock.mockResolvedValueOnce(makeEventDoc({ albumSlug: undefined }));
+      const res = createMockResponse();
+      await postUploadPhoto(makeReq(), res);
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
+
+    test("streams the file to Bunny photos/ and returns the sanitized name", async () => {
+      const { postUploadPhoto, nodeFetchMock } = await loadRouter();
+      nodeFetchMock.mockResolvedValueOnce({ ok: true });
+      const res = createMockResponse();
+      await postUploadPhoto(makeReq({ query: { name: "my album/DSC 0007.JPG" } }), res);
+      const [url, opts] = nodeFetchMock.mock.calls[0];
+      expect(url).toContain("nunta-ion-maria/photos/DSC_0007.JPG");
+      expect(opts.method).toBe("PUT");
+      expect(opts.headers["Content-Length"]).toBe("1024");
+      expect(res.json).toHaveBeenCalledWith({ ok: true, name: "DSC_0007.JPG" });
+    });
+
+    test("returns 502 when Bunny rejects the upload", async () => {
+      const { postUploadPhoto, nodeFetchMock } = await loadRouter();
+      nodeFetchMock.mockResolvedValueOnce({ ok: false, status: 507, text: async () => "insufficient storage" });
+      const res = createMockResponse();
+      await postUploadPhoto(makeReq(), res);
+      expect(res.status).toHaveBeenCalledWith(502);
     });
   });
 

@@ -6,6 +6,7 @@ import EventStatusBadge from "./EventStatusBadge";
 import FileDropZone from "./FileDropZone";
 import MultiFileDropZone from "./MultiFileDropZone";
 import PhotoboothUploader from "./PhotoboothUploader";
+import AlbumPhotoUploader from "./AlbumPhotoUploader";
 import ConfirmModal from "./ConfirmModal";
 import { slugify } from "../../../utils/slugify";
 import { useBodyScrollLock } from "../../../hooks/useBodyScrollLock";
@@ -74,6 +75,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
   const [folderResult, setFolderResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const [processing, setProcessing] = useState(false);
   const [processLog, setProcessLog] = useState<string[]>([]);
+  const [showAlbumUploader, setShowAlbumUploader] = useState(false);
   const [expenses, setExpenses] = useState<EventExpense[]>(event.expenses ?? []);
   const [newExpenseLabel, setNewExpenseLabel] = useState("");
   const [newExpenseAmount, setNewExpenseAmount] = useState("");
@@ -1009,6 +1011,12 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                       </button>
                       <span className="text-neutral-700 text-xs font-mono">/media/{albumSlug}</span>
                       <button
+                        onClick={(e) => { e.stopPropagation(); setShowAlbumUploader((v) => !v); }}
+                        className="inline-flex items-center gap-1.5 text-xs text-neutral-400 hover:text-white border border-neutral-700 hover:border-neutral-500 rounded-lg px-3 py-1.5 transition-colors"
+                      >
+                        {showAlbumUploader ? "Ascunde upload" : "⬆️ Încarcă poze"}
+                      </button>
+                      <button
                         onClick={(e) => { e.stopPropagation(); handleProcessAlbum(); }}
                         disabled={processing}
                         className="inline-flex items-center gap-1.5 text-xs text-neutral-400 hover:text-white border border-neutral-700 hover:border-neutral-500 rounded-lg px-3 py-1.5 transition-colors disabled:opacity-50"
@@ -1054,6 +1062,15 @@ const EventCard: React.FC<EventCardProps> = ({ event, initialCollapsed = false, 
                         </span>
                       )}
                     </div>
+
+                    {showAlbumUploader && event.id && albumSlug && (
+                      <AlbumPhotoUploader
+                        eventId={event.id}
+                        albumSlug={albumSlug}
+                        accessToken={auth.auth.accessToken}
+                        onComplete={() => { setShowAlbumUploader(false); handleProcessAlbum(); }}
+                      />
+                    )}
 
                     {/* Album subscribers */}
                     {subscriberCount !== null && (

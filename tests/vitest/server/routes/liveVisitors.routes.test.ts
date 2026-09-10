@@ -209,7 +209,7 @@ describe("liveVisitors.routes", () => {
       expect(sendEmail).toHaveBeenCalledTimes(2);
     });
 
-    test("form_submitted email/log title reflects meta.kind (contact vs delivery vs subscribe)", async () => {
+    test("form_submitted logs every kind, but only emails delivery/subscribe (not contact)", async () => {
       const { postEvent, sendEmail, logActivity } = await loadRouter();
       const post = (sid: string, kind: string) =>
         postEvent({ body: { sessionId: sid, event: "form_submitted", page: "/media/x", meta: { kind } }, headers: { "user-agent": realUa } }, createMockResponse());
@@ -219,7 +219,9 @@ describe("liveVisitors.routes", () => {
 
       const subjects = (sendEmail.mock.calls as { subject: string }[][]).map((c) => c[0].subject).join("\n");
       const titles = (logActivity.mock.calls as { title: string }[][]).map((c) => c[0].title).join("\n");
-      expect(subjects).toContain("contactat");
+      // contact has its own lead-email route — the generic listener carries no
+      // field values, so it never emails; it still shows in the activity feed.
+      expect(subjects).not.toContain("contactat");
       expect(subjects).toContain("livrare");
       expect(subjects).toContain("notificare");
       expect(titles).toContain("contactat");
@@ -227,12 +229,24 @@ describe("liveVisitors.routes", () => {
       expect(titles).toContain("notificare");
     });
 
-    test("form_submitted emails once per kind (contact and delivery are separate)", async () => {
+    test("a contact form_submitted with real lead data logs name/phone but sends no email", async () => {
+      const { postEvent, sendEmail, logActivity } = await loadRouter();
+      await postEvent(
+        { body: { sessionId: "c9", event: "form_submitted", page: "/oferta/olx", meta: { kind: "contact", name: "Andrei P", phone: "0712345678" } }, headers: { "user-agent": realUa } },
+        createMockResponse(),
+      );
+      expect(sendEmail).not.toHaveBeenCalled();
+      expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({
+        description: expect.stringContaining("Andrei P · 0712345678"),
+      }));
+    });
+
+    test("form_submitted emails once per kind (delivery and subscribe are separate)", async () => {
       const { postEvent, sendEmail } = await loadRouter();
       const mk = (kind: string) => ({ body: { sessionId: "s1", event: "form_submitted", page: "/x", meta: { kind } }, headers: { "user-agent": realUa } });
       await postEvent(mk("subscribe"), createMockResponse());
       await postEvent(mk("subscribe"), createMockResponse()); // deduped
-      await postEvent(mk("contact"), createMockResponse());   // different kind → emails
+      await postEvent(mk("delivery"), createMockResponse());  // different kind → emails
       expect(sendEmail).toHaveBeenCalledTimes(2);
     });
 
