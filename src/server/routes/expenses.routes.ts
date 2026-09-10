@@ -209,7 +209,7 @@ router.get("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, r
 
 // POST / — create expense
 router.post("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
-  const { date, category, description, supplier, amount, currency, exchangeRate, originalAmount, originalCurrency, deductibility, invoiceNumber, factura, chitanta } = req.body as {
+  const { date, category, description, supplier, amount, currency, exchangeRate, originalAmount, originalCurrency, deductibility, deductibleAmount: deductibleAmountInput, invoiceNumber, factura, chitanta } = req.body as {
     date: string;
     category: string;
     description?: string;
@@ -220,12 +220,16 @@ router.post("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, 
     originalAmount?: number;
     originalCurrency?: "USD";
     deductibility: number;
+    // When set, this fixed sum (already in the stored currency) is the deductible
+    // part — used for invoices where only a portion of the total is deductible
+    // (e.g. a phone bill with several lines). Overrides the percentage.
+    deductibleAmount?: number;
     invoiceNumber?: string;
     factura?: { url: string; name: string; hash?: string } | null;
     chitanta?: { url: string; name: string; hash?: string } | null;
   };
 
-  if (!date || !category || amount == null || deductibility == null) {
+  if (!date || !category || amount == null || (deductibility == null && deductibleAmountInput == null)) {
     res.status(400).json({ error: "Câmpuri obligatorii lipsă." });
     return;
   }
@@ -283,8 +287,21 @@ router.post("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, 
 
     const sourceCurrency = currency ?? "RON";
     const numAmount = sourceCurrency === "USD" ? Number(amount) * Number(exchangeRate) : Number(amount);
-    const numDeductibility = Number(deductibility);
-    const deductibleAmount = Math.round((numAmount * numDeductibility) / 100 * 100) / 100;
+
+    // A fixed deductible sum (clamped to [0, amount]) wins over the percentage;
+    // the stored `deductibility` is then back-derived from it so reports stay
+    // consistent.
+    const hasManualDeductible =
+      deductibleAmountInput != null && Number.isFinite(Number(deductibleAmountInput));
+    let deductibleAmount: number;
+    let numDeductibility: number;
+    if (hasManualDeductible) {
+      deductibleAmount = Math.round(Math.min(Math.max(Number(deductibleAmountInput), 0), numAmount) * 100) / 100;
+      numDeductibility = numAmount > 0 ? Math.round((deductibleAmount / numAmount) * 100 * 100) / 100 : 0;
+    } else {
+      numDeductibility = Number(deductibility);
+      deductibleAmount = Math.round((numAmount * numDeductibility) / 100 * 100) / 100;
+    }
 
     const docRef = await db.collection(COLLECTION).add({
       date: Timestamp.fromDate(new Date(date)),

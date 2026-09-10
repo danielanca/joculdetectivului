@@ -139,6 +139,41 @@ describe("expenses routes", () => {
       expect(saved.deductibleAmount).toBe(150);
     });
 
+    test("a fixed deductibleAmount overrides the percentage and back-derives deductibility", async () => {
+      const { postCreate, addMock } = await loadExpensesRouter();
+      const res = createMockResponse();
+      await postCreate(
+        { body: { date: "2026-01-12", category: "altele", amount: 165, deductibility: 50, deductibleAmount: 40 } },
+        res,
+      );
+      const saved = addMock.mock.calls[0][0];
+      expect(saved.deductibleAmount).toBe(40);
+      expect(saved.deductibility).toBeCloseTo(24.24, 2);
+    });
+
+    test("a fixed deductibleAmount is clamped to the invoice total", async () => {
+      const { postCreate, addMock } = await loadExpensesRouter();
+      const res = createMockResponse();
+      await postCreate(
+        { body: { date: "2026-01-12", category: "altele", amount: 165, deductibility: 50, deductibleAmount: 999 } },
+        res,
+      );
+      const saved = addMock.mock.calls[0][0];
+      expect(saved.deductibleAmount).toBe(165);
+      expect(saved.deductibility).toBe(100);
+    });
+
+    test("accepts a fixed deductibleAmount even without a percentage", async () => {
+      const { postCreate, addMock } = await loadExpensesRouter();
+      const res = createMockResponse();
+      await postCreate(
+        { body: { date: "2026-01-12", category: "altele", amount: 200, deductibleAmount: 50 } },
+        res,
+      );
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(addMock.mock.calls[0][0].deductibleAmount).toBe(50);
+    });
+
     test("returns 409 DUPLICATE_FILE when file hash already exists", async () => {
       const { postCreate, whereSnapMock } = await loadExpensesRouter();
       whereSnapMock.mockResolvedValue(makeDocSnap("existing-id"));

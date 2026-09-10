@@ -453,6 +453,9 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
   const [currency, setCurrency] = React.useState("RON");
   const [exchangeRate, setExchangeRate] = React.useState("");
   const [deductibility, setDeductibility] = React.useState(50);
+  const [deductMode, setDeductMode] = React.useState<"percent" | "amount">("percent");
+  // Fixed deductible sum, in the invoice's currency (same as the Sumă field).
+  const [deductibleAmountInput, setDeductibleAmountInput] = React.useState("");
   const [invoiceNumber, setInvoiceNumber] = React.useState("");
   const [facturaSlot, setFacturaSlot] = React.useState<DocSlot>({ file: null, scanning: false });
   const [chitantaSlot, setChitantaSlot] = React.useState<DocSlot>({ file: null, scanning: false });
@@ -465,7 +468,10 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
   function handleCategoryChange(value: string) {
     setCategory(value);
     const cat = EXPENSE_CATEGORIES.find((c) => c.value === value);
-    if (cat) setDeductibility(cat.defaultDeductibility);
+    if (cat) {
+      setDeductibility(cat.defaultDeductibility);
+      setDeductMode("percent");
+    }
   }
 
   async function handleScan(slot: DocSlot, setSlot: React.Dispatch<React.SetStateAction<DocSlot>>) {
@@ -533,6 +539,21 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
       return;
     }
 
+    // Deductible part: either a % of the total, or a fixed sum the user typed
+    // (for invoices where only a slice is deductible).
+    const useManualDeduct = deductMode === "amount";
+    const manualDeductEffective = (currency === "USD" ? Number(deductibleAmountInput) * Number(exchangeRate) : Number(deductibleAmountInput));
+    if (useManualDeduct && (deductibleAmountInput.trim() === "" || !Number.isFinite(manualDeductEffective) || manualDeductEffective < 0)) {
+      setError("Introdu suma deductibilă (partea din factură care se deduce).");
+      return;
+    }
+    const submittedDeductibleAmount = useManualDeduct
+      ? Math.round(Math.min(manualDeductEffective, effectiveAmount) * 100) / 100
+      : Math.round((effectiveAmount * deductibility) / 100 * 100) / 100;
+    const submittedDeductibility = useManualDeduct
+      ? (effectiveAmount > 0 ? Math.round((submittedDeductibleAmount / effectiveAmount) * 100 * 100) / 100 : 0)
+      : deductibility;
+
     // Check 1: supplier + amount + currency (client-side)
     if (supplier.trim()) {
       const normalizedSupplier = supplier.trim().toLowerCase();
@@ -597,7 +618,8 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
           amount: currency === "USD" ? Number(amount) * Number(exchangeRate) : Number(amount),
           currency: currency === "USD" ? "RON" : currency,
           ...(currency === "USD" ? { originalAmount: Number(amount), originalCurrency: "USD", exchangeRate: Number(exchangeRate) } : {}),
-          deductibility,
+          deductibility: submittedDeductibility,
+          ...(useManualDeduct ? { deductibleAmount: submittedDeductibleAmount } : {}),
           invoiceNumber: invoiceNumber.trim() || undefined,
           factura, chitanta,
         }),
@@ -617,7 +639,6 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
 
       if (!response.ok || data.error) throw new Error(data.error ?? `HTTP ${response.status}`);
 
-      const deductibleAmount = Math.round((effectiveAmount * deductibility) / 100 * 100) / 100;
       onAdded({
         id: data.id!,
         date: new Date(date).toISOString(),
@@ -629,8 +650,8 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
         originalAmount: currency === "USD" ? Number(amount) : null,
         originalCurrency: currency === "USD" ? "USD" : null,
         exchangeRate: currency === "USD" ? Number(exchangeRate) : null,
-        deductibility,
-        deductibleAmount,
+        deductibility: submittedDeductibility,
+        deductibleAmount: submittedDeductibleAmount,
         invoiceNumber: invoiceNumber.trim() || null,
         factura,
         chitanta,
@@ -732,26 +753,59 @@ function AddExpenseModal({ accessToken, existingExpenses, onClose, onAdded, onDu
 
           <div>
             <label className="block text-xs text-neutral-400 mb-2">Deductibilitate *</label>
-            <div className="flex gap-2">
-              {[50, 100].map((pct) => (
-                <button key={pct} type="button" onClick={() => setDeductibility(pct)}
-                  className={`flex-1 py-2 text-sm rounded-lg border transition-colors font-medium ${deductibility === pct ? "bg-emerald-600/20 border-emerald-500 text-emerald-400" : "border-neutral-700 text-neutral-400 hover:border-neutral-500"}`}>
-                  {pct}%
+
+            <div className="flex gap-2 mb-2">
+              {([["percent", "Procent"], ["amount", "Sumă fixă"]] as const).map(([mode, label]) => (
+                <button key={mode} type="button" onClick={() => setDeductMode(mode)}
+                  className={`flex-1 py-1.5 text-xs rounded-lg border transition-colors font-medium ${deductMode === mode ? "bg-emerald-600/20 border-emerald-500 text-emerald-400" : "border-neutral-700 text-neutral-400 hover:border-neutral-500"}`}>
+                  {label}
                 </button>
               ))}
-              <div className="flex-1 flex items-center gap-1">
-                <input type="number" min="0" max="100" value={deductibility}
-                  onChange={(e) => setDeductibility(Number(e.target.value))}
-                  className="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-500" />
-                <span className="text-neutral-400 text-sm">%</span>
-              </div>
             </div>
-            {amount && (
-              <p className="text-xs text-neutral-500 mt-1">
-                Deductibil: <span className="text-emerald-400 font-medium">{fmtCurrency(Math.round((Number(amount) * (currency === "USD" ? (Number(exchangeRate) || 0) : 1) * deductibility / 100) * 100) / 100, currency === "USD" ? "RON" : currency)}</span>
-                {currency === "USD" && Number(exchangeRate) > 0 && <span className="block text-[11px] text-neutral-600">Factură: {fmtCurrency(Math.round(Number(amount) * deductibility / 100 * 100) / 100, "USD")}</span>}
-              </p>
+
+            {deductMode === "percent" ? (
+              <div className="flex gap-2">
+                {[50, 100].map((pct) => (
+                  <button key={pct} type="button" onClick={() => setDeductibility(pct)}
+                    className={`flex-1 py-2 text-sm rounded-lg border transition-colors font-medium ${deductibility === pct ? "bg-emerald-600/20 border-emerald-500 text-emerald-400" : "border-neutral-700 text-neutral-400 hover:border-neutral-500"}`}>
+                    {pct}%
+                  </button>
+                ))}
+                <div className="flex-1 flex items-center gap-1">
+                  <input type="number" min="0" max="100" value={deductibility}
+                    onChange={(e) => setDeductibility(Number(e.target.value))}
+                    className="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-500" />
+                  <span className="text-neutral-400 text-sm">%</span>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <div className="flex-1 flex items-center gap-1">
+                  <input type="number" min="0" step="0.01" value={deductibleAmountInput}
+                    onChange={(e) => setDeductibleAmountInput(e.target.value)}
+                    placeholder="ex: 82.50"
+                    className="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-500" />
+                  <span className="text-neutral-400 text-sm">{currency === "USD" ? "USD" : currency}</span>
+                </div>
+                {amount && <span className="text-[11px] text-neutral-600 whitespace-nowrap">din {fmtCurrency(Number(amount), currency)}</span>}
+              </div>
             )}
+
+            {amount && (() => {
+              const usdFactor = currency === "USD" ? (Number(exchangeRate) || 0) : 1;
+              const total = Number(amount) * usdFactor;
+              const ded = deductMode === "amount"
+                ? Math.min(Math.max((Number(deductibleAmountInput) * usdFactor) || 0, 0), total)
+                : Math.round(total * deductibility / 100 * 100) / 100;
+              const pct = total > 0 ? Math.round((ded / total) * 100) : 0;
+              return (
+                <p className="text-xs text-neutral-500 mt-1.5">
+                  Deductibil: <span className="text-emerald-400 font-medium">{fmtCurrency(Math.round(ded * 100) / 100, currency === "USD" ? "RON" : currency)}</span>
+                  {deductMode === "amount" && total > 0 && <span className="text-neutral-600"> ({pct}% din total)</span>}
+                  {currency === "USD" && Number(exchangeRate) > 0 && <span className="block text-[11px] text-neutral-600">Factură: {fmtCurrency(Math.round((deductMode === "amount" ? (Number(deductibleAmountInput) || 0) : Number(amount) * deductibility / 100) * 100) / 100, "USD")}</span>}
+                </p>
+              );
+            })()}
           </div>
 
           {duplicateWarning && (
@@ -1884,7 +1938,7 @@ const FinancialPage: React.FC = () => {
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-white text-sm font-medium">{fmtCurrency(expense.amount, expense.currency)}</span>
                             <CategoryBadge value={expense.category} />
-                            <span className="text-xs text-amber-500">{expense.deductibility}% ded.</span>
+                            <span className="text-xs text-amber-500">{Math.round(expense.deductibility)}% ded.</span>
                           </div>
                           <div className="flex items-center gap-2 mt-0.5 text-xs text-neutral-500 flex-wrap">
                             <span>{fmtDate(expense.date)}</span>
