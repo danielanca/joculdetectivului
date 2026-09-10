@@ -20,7 +20,7 @@ function createMockResponse() {
   return res;
 }
 
-async function loadMonitoringRouter() {
+async function loadMonitoringRouter(opts: { ip?: string; ipInfo?: unknown } = {}) {
   const addMock = vi.fn().mockResolvedValue({ id: "err-1" });
   const countGetMock = vi.fn();
   const whereMock = vi.fn();
@@ -64,8 +64,8 @@ async function loadMonitoringRouter() {
   }));
 
   vi.doMock("src/server/utils/ipinfo", () => ({
-    getClientIp: vi.fn().mockReturnValue(""),
-    fetchIpInfo: vi.fn().mockResolvedValue(null),
+    getClientIp: vi.fn().mockReturnValue(opts.ip ?? ""),
+    fetchIpInfo: vi.fn().mockResolvedValue(opts.ipInfo ?? null),
   }));
 
   vi.doMock("src/server/middleware/requireFirebaseAuth", () => ({
@@ -232,6 +232,54 @@ describe("monitoring.routes", () => {
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(captureClientError).not.toHaveBeenCalled();
+    });
+
+    test("ignores crawlers (Applebot & co.) by user agent", async () => {
+      const { postNotFound, captureClientError, sendEmailMock } = await loadMonitoringRouter();
+      const res = createMockResponse();
+
+      await postNotFound({
+        body: {
+          path: "/foto-video-majorat-talmaciu",
+          userAgent: "Mozilla/5.0 (Macintosh) AppleWebKit/605.1.15 (Applebot/0.1; +http://www.apple.com/go/applebot)",
+        },
+      }, res);
+
+      expect(captureClientError).not.toHaveBeenCalled();
+      expect(sendEmailMock).not.toHaveBeenCalled();
+      expect(res.json).toHaveBeenCalledWith({ ok: true, ignored: true });
+    });
+
+    test("ignores visitors from outside Europe (US / CA / MX)", async () => {
+      const { postNotFound, captureClientError, sendEmailMock } = await loadMonitoringRouter({
+        ip: "17.166.20.182",
+        ipInfo: { city: "Maiden", region: "North Carolina", country: "US" },
+      });
+      const res = createMockResponse();
+
+      await postNotFound({
+        body: { path: "/foto-video-majorat-talmaciu", userAgent: "Mozilla/5.0" },
+      }, res);
+
+      expect(captureClientError).not.toHaveBeenCalled();
+      expect(sendEmailMock).not.toHaveBeenCalled();
+      expect(res.json).toHaveBeenCalledWith({ ok: true, ignored: true });
+    });
+
+    test("still notifies for a European visitor", async () => {
+      const { postNotFound, sendEmailMock } = await loadMonitoringRouter({
+        ip: "82.77.154.81",
+        ipInfo: { city: "Cluj-Napoca", region: "Cluj", country: "RO" },
+      });
+
+      await postNotFound({
+        body: { path: "/foto-video-majorat-talmaciu", userAgent: "Mozilla/5.0" },
+      }, createMockResponse());
+      await Promise.resolve();
+
+      expect(sendEmailMock).toHaveBeenCalledWith(expect.objectContaining({
+        subject: expect.stringContaining("/foto-video-majorat-talmaciu"),
+      }));
     });
   });
 

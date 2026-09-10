@@ -6,6 +6,8 @@ import { getClientIp, fetchIpInfo } from "../utils/ipinfo";
 import { requireFirebaseAuth, requireSupremeAdmin } from "../middleware/requireFirebaseAuth";
 import { sendEmail } from "../notifications/mailer";
 import { adminUser } from "../constants/credentials";
+import { BOT_UA } from "../utils/botUa";
+import { isNotifiableCountry } from "../utils/geoFilter";
 
 const router = Router();
 
@@ -206,8 +208,23 @@ router.post("/not-found", async (req: Request, res: Response) => {
       return;
     }
 
+    // Crawlers (Applebot, Googlebot, …) hit dead links constantly and are never
+    // a broken ad — skip them entirely.
+    if (BOT_UA.test(String(userAgent || ""))) {
+      res.json({ ok: true, ignored: true });
+      return;
+    }
+
     const ip = getClientIp(req);
     const geoData = await fetchIpInfo(ip).catch(() => null);
+
+    // Only notify for visitors from Europe — US / Canada / Mexic / rest of the
+    // world on a 404 is almost always a bot or irrelevant.
+    if (geoData && !isNotifiableCountry(geoData.country)) {
+      res.json({ ok: true, ignored: true });
+      return;
+    }
+
     const geo = geoData
       ? { city: geoData.city, region: geoData.region, country: geoData.country }
       : undefined;
