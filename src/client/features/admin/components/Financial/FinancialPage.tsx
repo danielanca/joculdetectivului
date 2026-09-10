@@ -157,6 +157,7 @@ type Action =
   | { type: "ADD_EXPENSE"; expense: Expense }
   | { type: "BUMP_EXPENSE_REVISION" }
   | { type: "REMOVE_EXPENSE"; id: string }
+  | { type: "UPDATE_EXPENSE"; id: string; patch: Partial<Expense> }
   | { type: "SET_DUPLICATE_ALERT"; payload: { expense: Expense; year: number } | null }
   | { type: "SET_HIGHLIGHTED_EXPENSE"; id: string | null }
   | { type: "ADD_INVOICE"; invoice: Invoice }
@@ -220,6 +221,7 @@ function reducer(state: State, action: Action): State {
     case "ADD_EXPENSE": return { ...state, expenses: [action.expense, ...state.expenses] };
     case "BUMP_EXPENSE_REVISION": return { ...state, expenseRevision: state.expenseRevision + 1 };
     case "REMOVE_EXPENSE": return { ...state, expenses: state.expenses.filter((e) => e.id !== action.id) };
+    case "UPDATE_EXPENSE": return { ...state, expenses: state.expenses.map((e) => e.id === action.id ? { ...e, ...action.patch } : e) };
     case "ADD_INVOICE": return { ...state, invoices: [action.invoice, ...state.invoices] };
     case "REMOVE_INVOICE": return { ...state, invoices: state.invoices.filter((i) => i.id !== action.id) };
     case "SET_INVOICE_PAID": return {
@@ -272,6 +274,54 @@ function fmtCurrency(amount: number, currency = "RON"): string {
 
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString("ro-RO", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+/** The "X% ded." chip on an expense card — click to correct the deductible sum. */
+function DeductibleBadge({ expense, onSave }: { expense: Expense; onSave: (id: string, deductibleAmount: number) => Promise<boolean> }) {
+  const [editing, setEditing] = React.useState(false);
+  const [value, setValue] = React.useState(String(expense.deductibleAmount ?? ""));
+  const [saving, setSaving] = React.useState(false);
+  const [err, setErr] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!editing) setValue(String(expense.deductibleAmount ?? ""));
+  }, [expense.deductibleAmount, editing]);
+
+  if (!editing) {
+    return (
+      <button type="button" onClick={() => { setEditing(true); setErr(false); }}
+        title="Editează valoarea deductibilă"
+        className="text-xs text-amber-500 hover:text-amber-300 underline decoration-dotted underline-offset-2 transition-colors">
+        {Math.round(expense.deductibility)}% ded. · {fmtCurrency(expense.deductibleAmount ?? 0, expense.currency)}
+      </button>
+    );
+  }
+
+  const commit = async () => {
+    const num = Number(value);
+    if (value.trim() === "" || !Number.isFinite(num) || num < 0) { setErr(true); return; }
+    setSaving(true);
+    const ok = await onSave(expense.id, num);
+    setSaving(false);
+    if (ok) setEditing(false); else setErr(true);
+  };
+
+  return (
+    <span className="inline-flex items-center gap-1">
+      <input type="number" min="0" step="0.01" value={value} autoFocus disabled={saving}
+        onChange={(e) => { setValue(e.target.value); setErr(false); }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") { e.preventDefault(); void commit(); }
+          if (e.key === "Escape") setEditing(false);
+        }}
+        className={`w-24 bg-neutral-800 border ${err ? "border-red-500" : "border-neutral-700"} text-white text-xs rounded px-2 py-1 focus:outline-none focus:border-emerald-500`} />
+      <span className="text-[11px] text-neutral-500">{expense.currency} din {fmtCurrency(expense.amount, expense.currency)}</span>
+      <button type="button" onClick={() => void commit()} disabled={saving}
+        className="text-xs text-emerald-400 hover:text-emerald-300 disabled:opacity-50 px-1">✓</button>
+      <button type="button" onClick={() => setEditing(false)} disabled={saving}
+        className="text-xs text-neutral-500 hover:text-neutral-300 px-1">✕</button>
+    </span>
+  );
 }
 
 // Match each whitespace-separated word independently against a normalised
@@ -1486,6 +1536,24 @@ const FinancialPage: React.FC = () => {
     dispatch({ type: "SET_DELETING", id: null });
   }
 
+  async function handleUpdateDeductible(id: string, deductibleAmount: number): Promise<boolean> {
+    try {
+      const res = await fetch(`/api/admin/expenses/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...authHeader },
+        body: JSON.stringify({ deductibleAmount }),
+      });
+      if (!res.ok) return false;
+      const data = await res.json() as { deductibleAmount?: number; deductibility?: number };
+      const patch: Partial<Expense> = { deductibleAmount: data.deductibleAmount ?? deductibleAmount };
+      if (typeof data.deductibility === "number") patch.deductibility = data.deductibility;
+      dispatch({ type: "UPDATE_EXPENSE", id, patch });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async function handleDeleteInvoice(id: string) {
     dispatch({ type: "SET_DELETING", id });
     await fetch(`/api/admin/invoices/${id}`, { method: "DELETE", headers: authHeader });
@@ -1938,7 +2006,7 @@ const FinancialPage: React.FC = () => {
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-white text-sm font-medium">{fmtCurrency(expense.amount, expense.currency)}</span>
                             <CategoryBadge value={expense.category} />
-                            <span className="text-xs text-amber-500">{Math.round(expense.deductibility)}% ded.</span>
+                            <DeductibleBadge expense={expense} onSave={handleUpdateDeductible} />
                           </div>
                           <div className="flex items-center gap-2 mt-0.5 text-xs text-neutral-500 flex-wrap">
                             <span>{fmtDate(expense.date)}</span>

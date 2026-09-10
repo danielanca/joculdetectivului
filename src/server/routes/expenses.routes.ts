@@ -327,6 +327,44 @@ router.post("/", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, 
   }
 });
 
+// PATCH /:id — adjust the deductible part of an existing expense (fix a mistake).
+// Accepts either `deductibleAmount` (a fixed sum) or `deductibility` (a percent);
+// the other field is always re-derived so the two stay consistent.
+router.patch("/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
+  try {
+    const { deductibleAmount, deductibility } = req.body as { deductibleAmount?: number; deductibility?: number };
+    const hasAmount = deductibleAmount != null && Number.isFinite(Number(deductibleAmount));
+    const hasPercent = deductibility != null && Number.isFinite(Number(deductibility));
+    if (!hasAmount && !hasPercent) {
+      res.status(400).json({ error: "Trimite deductibleAmount sau deductibility." });
+      return;
+    }
+
+    const db = firestore();
+    const ref = db.collection(COLLECTION).doc(req.params.id);
+    const snap = await ref.get();
+    if (!snap.exists) {
+      res.status(404).json({ error: "Cheltuiala nu a fost găsită." });
+      return;
+    }
+
+    const total = Number(snap.data()?.amount ?? 0);
+    let nextDeductibleAmount: number;
+    if (hasAmount) {
+      nextDeductibleAmount = Math.round(Math.min(Math.max(Number(deductibleAmount), 0), total) * 100) / 100;
+    } else {
+      const pct = Math.min(Math.max(Number(deductibility), 0), 100);
+      nextDeductibleAmount = Math.round((total * pct) / 100 * 100) / 100;
+    }
+    const nextDeductibility = total > 0 ? Math.round((nextDeductibleAmount / total) * 100 * 100) / 100 : 0;
+
+    await ref.update({ deductibleAmount: nextDeductibleAmount, deductibility: nextDeductibility });
+    res.json({ id: req.params.id, deductibleAmount: nextDeductibleAmount, deductibility: nextDeductibility });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
 // DELETE /:id
 router.delete("/:id", requireFirebaseAuth, requireSupremeAdmin, async (req: Request, res: Response) => {
   try {

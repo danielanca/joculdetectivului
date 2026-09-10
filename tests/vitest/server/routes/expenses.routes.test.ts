@@ -22,9 +22,15 @@ function makeDocSnap(id: string, data: Record<string, unknown> = {}) {
   return { empty: false, docs: [{ id, data: () => data }] };
 }
 
-async function loadExpensesRouter() {
+async function loadExpensesRouter(opts: { docData?: Record<string, unknown> | null } = {}) {
   const addMock = vi.fn().mockResolvedValue({ id: "new-expense-id" });
   const deleteMock = vi.fn().mockResolvedValue(undefined);
+  const updateMock = vi.fn().mockResolvedValue(undefined);
+  const docExists = opts.docData !== null;
+  const docGetMock = vi.fn().mockResolvedValue({
+    exists: docExists,
+    data: () => opts.docData ?? undefined,
+  });
 
   // Per-query mocks — start with "no duplicates"
   const whereSnapMock = vi.fn().mockResolvedValue(makeEmptySnap());
@@ -36,6 +42,8 @@ async function loadExpensesRouter() {
 
   const docMock = vi.fn((id: string) => ({
     delete: () => deleteMock(id),
+    get: () => docGetMock(id),
+    update: (patch: Record<string, unknown>) => updateMock(id, patch),
   }));
 
   const collectionMock = vi.fn(() => ({
@@ -79,7 +87,7 @@ async function loadExpensesRouter() {
   const module = await import("src/server/routes/expenses.routes");
   const router = module.default as any;
 
-  const getHandler = (method: "get" | "post" | "delete", path: string): Handler => {
+  const getHandler = (method: "get" | "post" | "delete" | "patch", path: string): Handler => {
     const layer = router.stack.find(
       (entry: any) => entry.route?.path === path && entry.route.methods?.[method],
     );
@@ -91,6 +99,8 @@ async function loadExpensesRouter() {
   return {
     addMock,
     deleteMock,
+    updateMock,
+    docGetMock,
     whereSnapMock,
     getCollectionMock,
     whereMock,
@@ -98,6 +108,7 @@ async function loadExpensesRouter() {
     postCreate: getHandler("post", "/"),
     getList: getHandler("get", "/"),
     deleteExpense: getHandler("delete", "/:id"),
+    patchExpense: getHandler("patch", "/:id"),
   };
 }
 
@@ -237,6 +248,42 @@ describe("expenses routes", () => {
       await deleteExpense({ params: { id: "expense-abc" } }, res);
       expect(deleteMock).toHaveBeenCalledWith("expense-abc");
       expect(res.json).toHaveBeenCalledWith({ ok: true });
+    });
+  });
+
+  describe("PATCH /:id — fix the deductible part", () => {
+    test("sets a corrected deductibleAmount and re-derives the percentage", async () => {
+      const { patchExpense, updateMock } = await loadExpensesRouter({ docData: { amount: 165 } });
+      const res = createMockResponse();
+      await patchExpense({ params: { id: "e1" }, body: { deductibleAmount: 40 } }, res);
+      expect(updateMock).toHaveBeenCalledWith("e1", { deductibleAmount: 40, deductibility: 24.24 });
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ deductibleAmount: 40 }));
+    });
+
+    test("clamps the corrected amount to the invoice total", async () => {
+      const { patchExpense, updateMock } = await loadExpensesRouter({ docData: { amount: 165 } });
+      await patchExpense({ params: { id: "e1" }, body: { deductibleAmount: 999 } }, createMockResponse());
+      expect(updateMock).toHaveBeenCalledWith("e1", { deductibleAmount: 165, deductibility: 100 });
+    });
+
+    test("accepts a percentage and derives the amount", async () => {
+      const { patchExpense, updateMock } = await loadExpensesRouter({ docData: { amount: 200 } });
+      await patchExpense({ params: { id: "e1" }, body: { deductibility: 50 } }, createMockResponse());
+      expect(updateMock).toHaveBeenCalledWith("e1", { deductibleAmount: 100, deductibility: 50 });
+    });
+
+    test("returns 404 for a missing expense", async () => {
+      const { patchExpense } = await loadExpensesRouter({ docData: null });
+      const res = createMockResponse();
+      await patchExpense({ params: { id: "nope" }, body: { deductibleAmount: 10 } }, res);
+      expect(res.status).toHaveBeenCalledWith(404);
+    });
+
+    test("returns 400 when neither field is provided", async () => {
+      const { patchExpense } = await loadExpensesRouter({ docData: { amount: 100 } });
+      const res = createMockResponse();
+      await patchExpense({ params: { id: "e1" }, body: {} }, res);
+      expect(res.status).toHaveBeenCalledWith(400);
     });
   });
 
